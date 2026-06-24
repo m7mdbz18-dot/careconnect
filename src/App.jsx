@@ -9,6 +9,7 @@ import RestaurantDashboard from './pages/RestaurantDashboard'
 import HousekeepingDashboard from './pages/HousekeepingDashboard'
 import LaundryDashboard from './pages/LaundryDashboard'
 import QRGenerator from './pages/QRGenerator'
+import AdminPage from './pages/AdminPage'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
         <Route path="/staff/housekeeping" element={<HousekeepingDashboard />} />
         <Route path="/staff/laundry" element={<LaundryDashboard />} />
         <Route path="/admin/qr" element={<QRGenerator />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>
   )
