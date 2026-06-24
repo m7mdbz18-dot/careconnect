@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { supabase } from '../supabase'
 
 const menuData = {
   breakfast: [
@@ -45,6 +46,7 @@ export default function MealSelection() {
   const navigate = useNavigate()
   const [selections, setSelections] = useState({ breakfast: null, lunch: null, dinner: null })
   const [submitted, setSubmitted] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const allSelected = selections.breakfast !== null && selections.lunch !== null && selections.dinner !== null
 
@@ -52,8 +54,22 @@ export default function MealSelection() {
     setSelections(s => ({ ...s, [slot]: item }))
   }
 
-  function submit() {
+  async function submit() {
     if (!allSelected) return
+    setSaving(true)
+    const { error } = await supabase.from('meal_selections').insert({
+      ward: ward.toUpperCase(),
+      room,
+      bed: bed.toUpperCase(),
+      breakfast: selections.breakfast.name,
+      lunch: selections.lunch.name,
+      dinner: selections.dinner.name,
+    })
+    setSaving(false)
+    if (error) {
+      alert('Something went wrong saving your meals. Please try again.')
+      return
+    }
     setSubmitted(true)
   }
 
@@ -105,7 +121,7 @@ export default function MealSelection() {
           </div>
           <div style={{ padding: '8px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
             {menuData[slot].map(item => (
-              <div key={item.id} onClick={() => select(slot, item)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 9, border: selections[slot]?.id === item.id ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: selections[slot]?.id === item.id ? '#E1F5EE' : item.id === 0 ? '#fafafa' : '#fafafa', cursor: 'pointer' }}>
+              <div key={item.id} onClick={() => select(slot, item)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 9, border: selections[slot]?.id === item.id ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: selections[slot]?.id === item.id ? '#E1F5EE' : '#fafafa', cursor: 'pointer' }}>
                 <div style={{ width: 16, height: 16, borderRadius: '50%', border: selections[slot]?.id === item.id ? '5px solid #0F6E56' : '1.5px solid #ccc', flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: 13, fontWeight: item.id === 0 ? 400 : 500, color: selections[slot]?.id === item.id ? '#085041' : item.id === 0 ? '#aaa' : '#111', fontStyle: item.id === 0 ? 'italic' : 'normal' }}>{item.name}</span>
                 {item.tag && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: tagColors[item.tag].bg, color: tagColors[item.tag].color }}>{item.tag}</span>}
@@ -123,9 +139,9 @@ export default function MealSelection() {
         )}
         <button
           onClick={submit}
-          disabled={!allSelected}
-          style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: allSelected ? '#0F6E56' : '#ddd', color: allSelected ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: allSelected ? 'pointer' : 'not-allowed' }}>
-          {allSelected ? 'Submit all meals ✓' : 'Choose all 3 meals to submit'}
+          disabled={!allSelected || saving}
+          style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: allSelected && !saving ? '#0F6E56' : '#ddd', color: allSelected && !saving ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: allSelected && !saving ? 'pointer' : 'not-allowed' }}>
+          {saving ? 'Saving...' : allSelected ? 'Submit all meals ✓' : 'Choose all 3 meals to submit'}
         </button>
       </div>
     </div>
