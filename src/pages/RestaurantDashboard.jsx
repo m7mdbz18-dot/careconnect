@@ -1,12 +1,7 @@
-import { useState } from 'react'
-
-const initialOrders = [
-  { id: 1, room: '204', bed: 'B', ward: 'A', breakfast: 'Oatmeal with honey & dates', lunch: 'Grilled chicken with rice', dinner: 'Grilled salmon with quinoa' },
-  { id: 2, room: '112', bed: 'A', ward: 'A', breakfast: 'Scrambled eggs with toast', lunch: 'Vegetable pasta', dinner: 'Chicken soup with bread' },
-  { id: 3, room: '307', bed: 'C', ward: 'B', breakfast: 'Low-sugar fruit bowl', lunch: 'Low-sugar lamb stew', dinner: 'Light grilled fish & salad' },
-  { id: 4, room: '201', bed: 'A', ward: 'A', breakfast: 'Labneh & vegetables plate', lunch: 'Lemon herb fish', dinner: 'Stuffed vegetables' },
-  { id: 5, room: '118', bed: 'B', ward: 'B', breakfast: 'Oatmeal with honey & dates', lunch: 'Grilled chicken with rice', dinner: 'Chicken soup with bread' },
-]
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../supabase'
+import { logout } from '../auth'
 
 const menuData = {
   breakfast: [
@@ -36,10 +31,63 @@ const tagColors = {
   Healthy: { bg: '#E1F5EE', color: '#085041' },
 }
 
+function getTomorrowStr() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+function prettyDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 export default function RestaurantDashboard() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('orders')
   const [menuTab, setMenuTab] = useState('breakfast')
   const [menu, setMenu] = useState(menuData)
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState(getTomorrowStr())
+
+  useEffect(() => {
+    loadOrders()
+    const channel = supabase
+      .channel('meals-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_selections' }, () => loadOrders())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [selectedDate])
+
+  async function loadOrders() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('meal_selections')
+      .select('*')
+      .eq('for_date', selectedDate)
+      .order('ward', { ascending: true })
+      .order('room', { ascending: true })
+      .order('bed', { ascending: true })
+    setOrders(data || [])
+    setLoading(false)
+  }
+
+  function exportCSV() {
+    if (orders.length === 0) { alert('No meals to export for this day.'); return }
+    const headers = ['Ward', 'Room', 'Bed', 'Breakfast', 'Lunch', 'Dinner', 'For date']
+    const rows = orders.map(o => [o.ward, o.room, o.bed, o.breakfast, o.lunch, o.dinner, o.for_date])
+    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `meals-${selectedDate}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   function toggleItem(slot, id) {
     setMenu(m => ({
@@ -48,17 +96,17 @@ export default function RestaurantDashboard() {
     }))
   }
 
+  const isTomorrow = selectedDate === getTomorrowStr()
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 0', color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
             <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Staff dashboard</p>
-            <h1 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 600 }}>Restaurant</h1>
+            <h1 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 600 }}>🍽️ Restaurant</h1>
           </div>
-          <div style={{ background: '#fff', color: '#0F6E56', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
-            {initialOrders.length} selections
-          </div>
+          <button onClick={() => { logout(); navigate('/login') }} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>Logout</button>
         </div>
         <div style={{ display: 'flex' }}>
           {['orders', 'menu'].map(t => (
@@ -71,35 +119,46 @@ export default function RestaurantDashboard() {
 
       {tab === 'orders' && (
         <div style={{ padding: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-            {[['Total', initialOrders.length], ['Wards', 2], ['Pending', initialOrders.length]].map(([label, val]) => (
-              <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '12px', textAlign: 'center', border: '0.5px solid #eee' }}>
-                <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#0F6E56' }}>{val}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#888' }}>{label}</p>
-              </div>
-            ))}
+          <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Showing meals for</p>
+              <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 700, color: '#0F6E56' }}>{prettyDate(selectedDate)}{isTomorrow ? ' (tomorrow)' : ''}</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit' }} />
+              <button onClick={exportCSV} style={{ background: '#E1F5EE', color: '#085041', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>⬇ Export to Excel</button>
+            </div>
           </div>
 
-          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Tomorrow's meal selections</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {initialOrders.map(order => (
-              <div key={order.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', overflow: 'hidden' }}>
-                <div style={{ background: '#E1F5EE', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: '#085041' }}>Room {order.room} · Bed {order.bed}</span>
-                  <span style={{ fontSize: 11, color: '#0F6E56' }}>Ward {order.ward}</span>
+          {loading ? (
+            <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading...</p>
+          ) : orders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>
+              <p style={{ fontSize: 32 }}>🍽️</p>
+              <p>No meal selections for this day</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ margin: 0, fontSize: 11, color: '#888' }}>{orders.length} selection{orders.length > 1 ? 's' : ''}</p>
+              {orders.map(order => (
+                <div key={order.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', overflow: 'hidden' }}>
+                  <div style={{ background: '#E1F5EE', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: '#085041' }}>Room {order.room} · Bed {order.bed}</span>
+                    <span style={{ fontSize: 11, color: '#0F6E56' }}>Ward {order.ward}</span>
+                  </div>
+                  <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[['🌅', 'Breakfast', order.breakfast], ['☀️', 'Lunch', order.lunch], ['🌙', 'Dinner', order.dinner]].map(([icon, label, item]) => (
+                      <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
+                        <span>{icon}</span>
+                        <span style={{ color: '#888', minWidth: 65 }}>{label}:</span>
+                        <span style={{ color: '#111', fontWeight: 500 }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[['🌅', 'Breakfast', order.breakfast], ['☀️', 'Lunch', order.lunch], ['🌙', 'Dinner', order.dinner]].map(([icon, label, item]) => (
-                    <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                      <span>{icon}</span>
-                      <span style={{ color: '#888', minWidth: 65 }}>{label}:</span>
-                      <span style={{ color: '#111', fontWeight: 500 }}>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -112,7 +171,6 @@ export default function RestaurantDashboard() {
               </button>
             ))}
           </div>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {menu[menuTab].map(item => (
               <div key={item.id} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', border: '0.5px solid #eee', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -125,7 +183,7 @@ export default function RestaurantDashboard() {
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 12 }}>Toggle items on/off · Changes reflect instantly for patients</p>
+          <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 12 }}>Menu changes are local for now · we can save these to the database later</p>
         </div>
       )}
     </div>

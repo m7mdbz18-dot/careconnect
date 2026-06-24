@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { supabase } from '../supabase'
 
+const CUTOFF_HOUR = 16 // 4 PM. Change this number to adjust the cutoff.
+
 const menuData = {
   breakfast: [
     { id: 1, name: 'Oatmeal with honey & dates', tag: 'Healthy' },
@@ -33,13 +35,17 @@ const tagColors = {
   Healthy: { bg: '#E1F5EE', color: '#085041' },
 }
 
-const cutoffs = {
-  breakfast: '9:00 PM tonight',
-  lunch: '9:00 AM tomorrow',
-  dinner: '2:00 PM tomorrow',
-}
-
 const icons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
+
+// Tomorrow's date as a Date object and as YYYY-MM-DD for the database
+function getTomorrow() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d
+}
+function toDateString(d) {
+  return d.toISOString().split('T')[0]
+}
 
 export default function MealSelection() {
   const { ward, room, bed } = useParams()
@@ -48,6 +54,9 @@ export default function MealSelection() {
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  const tomorrow = getTomorrow()
+  const tomorrowLabel = tomorrow.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  const isClosed = new Date().getHours() >= CUTOFF_HOUR
   const allSelected = selections.breakfast !== null && selections.lunch !== null && selections.dinner !== null
 
   function select(slot, item) {
@@ -55,7 +64,7 @@ export default function MealSelection() {
   }
 
   async function submit() {
-    if (!allSelected) return
+    if (!allSelected || isClosed) return
     setSaving(true)
     const { error } = await supabase.from('meal_selections').insert({
       ward: ward.toUpperCase(),
@@ -64,13 +73,29 @@ export default function MealSelection() {
       breakfast: selections.breakfast.name,
       lunch: selections.lunch.name,
       dinner: selections.dinner.name,
+      for_date: toDateString(tomorrow),
     })
     setSaving(false)
-    if (error) {
-      alert('Something went wrong saving your meals. Please try again.')
-      return
-    }
+    if (error) { alert('Something went wrong saving your meals. Please try again.'); return }
     setSubmitted(true)
+  }
+
+  if (isClosed) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🕓</div>
+        <h2 style={{ color: '#0F6E56', margin: 0, fontSize: 22, fontWeight: 700, textAlign: 'center' }}>Meal selection is closed</h2>
+        <p style={{ color: '#888', textAlign: 'center', marginTop: 10, fontSize: 14, maxWidth: 320 }}>
+          Tomorrow's meals must be chosen before 4:00 PM. The kitchen has already started preparing.
+        </p>
+        <p style={{ color: '#aaa', textAlign: 'center', marginTop: 6, fontSize: 13, maxWidth: 320 }}>
+          Please speak to your nurse if you have dietary needs, and select before 4:00 PM tomorrow.
+        </p>
+        <button onClick={() => navigate(`/q/${ward}/${room}/${bed}/patient`)} style={{ marginTop: 24, padding: '13px 40px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          Back to home
+        </button>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -78,7 +103,7 @@ export default function MealSelection() {
       <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ fontSize: 70, marginBottom: 16 }}>🎉</div>
         <h2 style={{ color: '#0F6E56', margin: 0, fontSize: 24, fontWeight: 700 }}>Meals submitted!</h2>
-        <p style={{ color: '#888', textAlign: 'center', marginTop: 8, fontSize: 14 }}>Your meal selections for tomorrow are saved.<br />The kitchen has been notified.</p>
+        <p style={{ color: '#888', textAlign: 'center', marginTop: 8, fontSize: 14 }}>Your meals for {tomorrowLabel} are saved.<br />The kitchen has been notified.</p>
 
         <div style={{ background: '#fff', borderRadius: 14, border: '0.5px solid #eee', padding: '16px 20px', marginTop: 24, width: '100%', maxWidth: 360 }}>
           {[['🌅', 'Breakfast', selections.breakfast], ['☀️', 'Lunch', selections.lunch], ['🌙', 'Dinner', selections.dinner]].map(([icon, label, item]) => (
@@ -107,8 +132,9 @@ export default function MealSelection() {
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px', background: '#E1F5EE', fontSize: 12, color: '#085041', display: 'flex', alignItems: 'center', gap: 6 }}>
-        📅 Select one option per meal then submit all at once
+      <div style={{ padding: '14px 16px', background: '#E1F5EE', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 13, color: '#085041', fontWeight: 700 }}>📅 Meals for {tomorrowLabel}</span>
+        <span style={{ fontSize: 12, color: '#0F6E56' }}>Select one option per meal · Closes 4:00 PM today</span>
       </div>
 
       {['breakfast', 'lunch', 'dinner'].map(slot => (
@@ -116,7 +142,7 @@ export default function MealSelection() {
           <div style={{ padding: '12px 14px', borderBottom: '0.5px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#111' }}>{icons[slot]} {slot.charAt(0).toUpperCase() + slot.slice(1)}</span>
             <span style={{ fontSize: 11, color: selections[slot] ? '#0F6E56' : '#aaa', fontWeight: selections[slot] ? 600 : 400 }}>
-              {selections[slot] ? '✓ Selected' : `Cutoff: ${cutoffs[slot]}`}
+              {selections[slot] ? '✓ Selected' : 'Choose one'}
             </span>
           </div>
           <div style={{ padding: '8px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
