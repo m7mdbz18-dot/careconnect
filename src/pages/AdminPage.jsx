@@ -8,6 +8,7 @@ export default function AdminPage() {
     { title: 'Restaurant Dashboard', desc: 'View meal selections & edit menu', icon: '🍽️', path: '/staff/restaurant', bg: '#E1F5EE' },
     { title: 'Housekeeping Dashboard', desc: 'Manage cleaning requests', icon: '✨', path: '/staff/housekeeping', bg: '#E6F1FB' },
     { title: 'Laundry Dashboard', desc: 'Manage laundry pickups', icon: '👕', path: '/staff/laundry', bg: '#EEEDFE' },
+    { title: 'Restaurant Directory', desc: 'Add or remove visitor restaurants', icon: '🍴', path: '/admin/restaurants', bg: '#FCEBEB' },
   ]
 
   return (
