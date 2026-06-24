@@ -4,12 +4,15 @@ import { supabase } from '../supabase'
 import { logout } from '../auth'
 
 const statusColors = {
-  new: { bg: '#FCEBEB', color: '#A32D2D', label: 'New' },
-  'in progress': { bg: '#FAEEDA', color: '#633806', label: 'In progress' },
-  done: { bg: '#EAF3DE', color: '#27500A', label: 'Done' },
+  new: { bg: '#FCEBEB', color: '#A32D2D', label: 'New order' },
+  'picked up': { bg: '#FAEEDA', color: '#633806', label: 'Picked up' },
+  'dropped off': { bg: '#E6F1FB', color: '#0C447C', label: 'Dropped off' },
+  done: { bg: '#EAF3DE', color: '#27500A', label: 'Complete' },
 }
 
-const prevStatus = { 'in progress': 'new', done: 'in progress' }
+const nextStatus = { new: 'picked up', 'picked up': 'dropped off', 'dropped off': 'done' }
+const nextLabel = { new: 'Mark picked up', 'picked up': 'Mark dropped off', 'dropped off': 'Mark complete' }
+const prevStatus = { 'picked up': 'new', 'dropped off': 'picked up', done: 'dropped off' }
 
 export default function LaundryDashboard() {
   const navigate = useNavigate()
@@ -73,6 +76,7 @@ export default function LaundryDashboard() {
             {filtered.map(r => {
               const sc = statusColors[r.status] || statusColors.new
               const canStepBack = prevStatus[r.status]
+              const advance = nextStatus[r.status]
               return (
                 <div key={r.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', overflow: 'hidden' }}>
                   <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '0.5px solid #f0f0f0' }}>
@@ -87,16 +91,13 @@ export default function LaundryDashboard() {
                   <div style={{ padding: '12px 14px' }}>
                     <p style={{ margin: 0, fontSize: 13, color: '#111' }}>🕐 {r.details}</p>
                     {r.note && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#888', fontStyle: 'italic' }}>"{r.note}"</p>}
-                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#bbb' }}>Ward {r.ward}</p>
+                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#bbb' }}>Ward {r.ward} · {formatTime(r.created_at)}</p>
                   </div>
-                  <div style={{ padding: '0 14px 12px', display: 'flex', gap: 8 }}>
-                    {r.status === 'new' && (
-                      <button onClick={() => updateStatus(r.id, 'in progress')} style={btnStyle('#FAEEDA', '#633806')}>Start</button>
-                    )}
-                    {r.status !== 'done' && (
-                      <button onClick={() => updateStatus(r.id, 'done')} style={btnStyle('#0F6E56', '#fff')}>Mark done</button>
-                    )}
-                  </div>
+                  {advance && (
+                    <div style={{ padding: '0 14px 12px' }}>
+                      <button onClick={() => updateStatus(r.id, advance)} style={btnStyle('#0F6E56', '#fff')}>{nextLabel[r.status]}</button>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -107,4 +108,10 @@ export default function LaundryDashboard() {
   )
 }
 
-const btnStyle = (bg, color) => ({ flex: 1, padding: '9px', borderRadius: 8, border: 'none', background: bg, color, fontWeight: 600, fontSize: 13, cursor: 'pointer' })
+function formatTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+const btnStyle = (bg, color) => ({ width: '100%', padding: '11px', borderRadius: 8, border: 'none', background: bg, color, fontWeight: 600, fontSize: 14, cursor: 'pointer' })

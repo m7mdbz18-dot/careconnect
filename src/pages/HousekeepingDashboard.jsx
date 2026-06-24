@@ -87,7 +87,7 @@ export default function HousekeepingDashboard() {
                   <div style={{ padding: '12px 14px' }}>
                     <p style={{ margin: 0, fontSize: 13, color: '#111' }}>🧹 {r.details}</p>
                     {r.note && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#888', fontStyle: 'italic' }}>"{r.note}"</p>}
-                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#bbb' }}>Ward {r.ward}</p>
+                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#bbb' }}>Ward {r.ward} · {formatTime(r.created_at)}</p>
                   </div>
                   <div style={{ padding: '0 14px 12px', display: 'flex', gap: 8 }}>
                     {r.status === 'new' && (
@@ -105,6 +105,12 @@ export default function HousekeepingDashboard() {
       </div>
     </div>
   )
+}
+
+function formatTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 const btnStyle = (bg, color) => ({ flex: 1, padding: '9px', borderRadius: 8, border: 'none', background: bg, color, fontWeight: 600, fontSize: 13, cursor: 'pointer' })
