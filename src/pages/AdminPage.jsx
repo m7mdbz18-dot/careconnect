@@ -32,6 +32,7 @@ export default function AdminPage() {
   const sections = [
     { title: 'QR Code Generator', desc: 'Create & print bed QR codes', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
     { title: 'Restaurant Directory', desc: 'Add or remove visitor restaurants', icon: '🍴', path: '/admin/restaurants', bg: '#FCEBEB' },
+    { title: 'Edit Menu', desc: 'Add, remove & toggle meal options', icon: '📋', path: '/staff/menu', bg: '#E1F5EE' },
   ]
 
   const statCards = [

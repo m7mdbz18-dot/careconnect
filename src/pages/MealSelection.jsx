@@ -1,32 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const CUTOFF_HOUR = 16 // 4 PM. Change this number to adjust the cutoff.
-
-const menuData = {
-  breakfast: [
-    { id: 1, name: 'Oatmeal with honey & dates', tag: 'Healthy' },
-    { id: 2, name: 'Scrambled eggs with toast', tag: 'Halal' },
-    { id: 3, name: 'Labneh & vegetables plate', tag: 'Veg' },
-    { id: 4, name: 'Low-sugar fruit bowl', tag: 'Diabetic' },
-    { id: 0, name: 'No preference', tag: null },
-  ],
-  lunch: [
-    { id: 1, name: 'Grilled chicken with rice', tag: 'Halal' },
-    { id: 2, name: 'Lemon herb fish', tag: 'Halal' },
-    { id: 3, name: 'Vegetable pasta', tag: 'Veg' },
-    { id: 4, name: 'Low-sugar lamb stew', tag: 'Diabetic' },
-    { id: 0, name: 'No preference', tag: null },
-  ],
-  dinner: [
-    { id: 1, name: 'Grilled salmon with quinoa', tag: 'Halal' },
-    { id: 2, name: 'Chicken soup with bread', tag: 'Halal' },
-    { id: 3, name: 'Stuffed vegetables', tag: 'Veg' },
-    { id: 4, name: 'Light grilled fish & salad', tag: 'Diabetic' },
-    { id: 0, name: 'No preference', tag: null },
-  ],
-}
 
 const tagColors = {
   Halal: { bg: '#E6F1FB', color: '#0C447C' },
@@ -37,7 +13,6 @@ const tagColors = {
 
 const icons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
 
-// Tomorrow's date as a Date object and as YYYY-MM-DD for the database
 function getTomorrow() {
   const d = new Date()
   d.setDate(d.getDate() + 1)
@@ -50,6 +25,8 @@ function toDateString(d) {
 export default function MealSelection() {
   const { ward, room, bed } = useParams()
   const navigate = useNavigate()
+  const [menu, setMenu] = useState({ breakfast: [], lunch: [], dinner: [] })
+  const [menuLoading, setMenuLoading] = useState(true)
   const [selections, setSelections] = useState({ breakfast: null, lunch: null, dinner: null })
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -57,6 +34,30 @@ export default function MealSelection() {
   const tomorrow = getTomorrow()
   const tomorrowLabel = tomorrow.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
   const isClosed = new Date().getHours() >= CUTOFF_HOUR
+
+  useEffect(() => {
+    loadMenu()
+    const channel = supabase
+      .channel('patient-menu')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => loadMenu())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  async function loadMenu() {
+    const { data } = await supabase.from('menu_items').select('*').eq('active', true).order('created_at', { ascending: true })
+    const grouped = { breakfast: [], lunch: [], dinner: [] }
+    ;(data || []).forEach(item => {
+      if (grouped[item.slot]) grouped[item.slot].push(item)
+    })
+    // add a "No preference" option to each slot
+    Object.keys(grouped).forEach(slot => {
+      grouped[slot].push({ id: `none-${slot}`, name: 'No preference', tag: null })
+    })
+    setMenu(grouped)
+    setMenuLoading(false)
+  }
+
   const allSelected = selections.breakfast !== null && selections.lunch !== null && selections.dinner !== null
 
   function select(slot, item) {
@@ -122,6 +123,14 @@ export default function MealSelection() {
     )
   }
 
+  if (menuLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#aaa' }}>Loading menu...</p>
+      </div>
+    )
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', paddingBottom: 100 }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -146,13 +155,16 @@ export default function MealSelection() {
             </span>
           </div>
           <div style={{ padding: '8px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {menuData[slot].map(item => (
-              <div key={item.id} onClick={() => select(slot, item)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 9, border: selections[slot]?.id === item.id ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: selections[slot]?.id === item.id ? '#E1F5EE' : '#fafafa', cursor: 'pointer' }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: selections[slot]?.id === item.id ? '5px solid #0F6E56' : '1.5px solid #ccc', flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 13, fontWeight: item.id === 0 ? 400 : 500, color: selections[slot]?.id === item.id ? '#085041' : item.id === 0 ? '#aaa' : '#111', fontStyle: item.id === 0 ? 'italic' : 'normal' }}>{item.name}</span>
-                {item.tag && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: tagColors[item.tag].bg, color: tagColors[item.tag].color }}>{item.tag}</span>}
-              </div>
-            ))}
+            {menu[slot].map(item => {
+              const isNone = String(item.id).startsWith('none-')
+              return (
+                <div key={item.id} onClick={() => select(slot, item)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 9, border: selections[slot]?.id === item.id ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: selections[slot]?.id === item.id ? '#E1F5EE' : '#fafafa', cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: selections[slot]?.id === item.id ? '5px solid #0F6E56' : '1.5px solid #ccc', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: isNone ? 400 : 500, color: selections[slot]?.id === item.id ? '#085041' : isNone ? '#aaa' : '#111', fontStyle: isNone ? 'italic' : 'normal' }}>{item.name}</span>
+                  {item.tag && tagColors[item.tag] && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: tagColors[item.tag].bg, color: tagColors[item.tag].color }}>{item.tag}</span>}
+                </div>
+              )
+            })}
           </div>
         </div>
       ))}

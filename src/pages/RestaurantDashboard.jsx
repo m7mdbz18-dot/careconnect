@@ -183,7 +183,7 @@ export default function RestaurantDashboard() {
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 12 }}>Menu changes are local for now · we can save these to the database later</p>
+          <button onClick={() => navigate('/staff/menu')} style={{ width: '100%', marginTop: 14, padding: '12px', borderRadius: 9, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>✏️ Edit full menu (add / remove items)</button>
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@ import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
 import Protected from './pages/Protected'
 import RestaurantManager from './pages/RestaurantManager'
+import MenuManager from './pages/MenuManager'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
         <Route path="/staff/restaurant" element={<Protected allow="restaurant"><RestaurantDashboard /></Protected>} />
         <Route path="/staff/housekeeping" element={<Protected allow="housekeeping"><HousekeepingDashboard /></Protected>} />
         <Route path="/staff/laundry" element={<Protected allow="laundry"><LaundryDashboard /></Protected>} />
+        <Route path="/staff/menu" element={<Protected allow="restaurant"><MenuManager /></Protected>} />
 
         {/* Admin (protected) */}
         <Route path="/admin" element={<Protected allow="admin"><AdminPage /></Protected>} />
