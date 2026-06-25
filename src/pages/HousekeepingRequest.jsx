@@ -46,7 +46,7 @@ export default function HousekeepingRequest() {
         <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
         <h2 style={{ color: '#0F6E56', margin: 0, fontSize: 24, fontWeight: 700 }}>Housekeeping requested!</h2>
         <p style={{ color: '#888', textAlign: 'center', marginTop: 8, fontSize: 14 }}>{selected.length} task{selected.length > 1 ? 's' : ''} requested.<br />The housekeeping team has been notified.</p>
-        <button onClick={() => navigate(`/q/${ward}/${room}/${bed}/visitor`)} style={{ marginTop: 24, padding: '13px 40px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Back to home</button>
+        <button onClick={() => navigate(`/q/${ward}/${room}/${bed}`)} style={{ marginTop: 24, padding: '13px 40px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Back to home</button>
       </div>
     )
   }

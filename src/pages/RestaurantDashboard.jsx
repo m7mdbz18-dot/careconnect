@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { logout } from '../auth'
+import { logout, getRole } from '../auth'
 
 const menuData = {
   breakfast: [
@@ -51,6 +51,7 @@ export default function RestaurantDashboard() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(getTomorrowStr())
+  const isAdmin = getRole() === 'admin'
 
   useEffect(() => {
     loadOrders()
@@ -102,9 +103,14 @@ export default function RestaurantDashboard() {
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 0', color: '#fff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Staff dashboard</p>
-            <h1 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 600 }}>🍽️ Restaurant</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {isAdmin && (
+              <button onClick={() => navigate('/admin')} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>‹</button>
+            )}
+            <div>
+              <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Staff dashboard</p>
+              <h1 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 600 }}>🍽️ Restaurant</h1>
+            </div>
           </div>
           <button onClick={() => { logout(); navigate('/login') }} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>Logout</button>
         </div>
