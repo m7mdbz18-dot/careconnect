@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 
 const BASE_URL = 'https://careconnect-henna.vercel.app'
 
 export default function QRGenerator() {
+  const navigate = useNavigate()
   const [ward, setWard] = useState('')
   const [room, setRoom] = useState('')
   const [bed, setBed] = useState('')
@@ -28,9 +30,12 @@ export default function QRGenerator() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
-      <div style={{ background: '#0F6E56', padding: '20px 16px', color: '#fff' }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>QR Code Generator</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.7 }}>CareConnect · Admin</p>
+      <div style={{ background: '#0F6E56', padding: '20px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => navigate('/admin')} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>‹</button>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>QR Code Generator</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.7 }}>CareConnect · Admin</p>
+        </div>
       </div>
 
       <div style={{ padding: 16 }}>
