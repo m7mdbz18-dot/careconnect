@@ -16,7 +16,7 @@ function generateTrackingCode() {
 }
 
 export default function VendorPage() {
-  const { ward, room, bed, vendorId } = useParams()
+  const { ward, room, bed, area, vendorId } = useParams()
   const navigate = useNavigate()
   const [vendor, setVendor] = useState(null)
   const [options, setOptions] = useState([])
@@ -30,8 +30,10 @@ export default function VendorPage() {
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const isWaiting = !!area
+  const displayArea = area ? decodeURIComponent(area) : null
   const userType = sessionStorage.getItem(`userType-${room}-${bed}`) || 'patient'
-  const homePath = `/q/${ward}/${room}/${bed}/${userType}`
+  const homePath = isWaiting ? `/w/${area}` : `/q/${ward}/${room}/${bed}/${userType}`
 
   useEffect(() => {
     Promise.all([
@@ -56,15 +58,16 @@ export default function VendorPage() {
     if (selected.length === 0 || submitting) return
     setSubmitting(true)
     const code = generateTrackingCode()
+    const location = isWaiting
+      ? { location_type: 'waiting', waiting_area: displayArea }
+      : { location_type: 'room', ward: ward.toUpperCase(), room, bed: bed.toUpperCase() }
+
     const { data, error } = await supabase.from('orders').insert({
       device_token: getDeviceToken(),
       tracking_code: code,
       vendor_id: vendorId,
       items: selected,
-      location_type: 'room',
-      ward: ward.toUpperCase(),
-      room,
-      bed: bed.toUpperCase(),
+      ...location,
       customer_name: name.trim() || null,
       customer_phone: phone.trim() || null,
     }).select('id').single()
@@ -143,7 +146,9 @@ export default function VendorPage() {
           <span style={{ fontSize: 26 }}>{vendor.emoji}</span>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{vendor.name}</h1>
-            {vendor.description && <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>{vendor.description}</p>}
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
+              {vendor.description || (isWaiting ? displayArea : `Room ${room} · Bed ${bed.toUpperCase()}`)}
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex' }}>
