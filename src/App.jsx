@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage'
 import Protected from './pages/Protected'
 import VendorManager from './pages/VendorManager'
 import VendorOptionsManager from './pages/VendorOptionsManager'
+import OrderTrackingPage from './pages/OrderTrackingPage'
 
 function App() {
   return (
@@ -27,6 +28,9 @@ function App() {
         <Route path="/q/:ward/:room/:bed/vendors/:vendorId" element={<VendorPage />} />
         <Route path="/q/:ward/:room/:bed/laundry" element={<LaundryRequest />} />
         <Route path="/q/:ward/:room/:bed/housekeeping" element={<HousekeepingRequest />} />
+
+        {/* Order tracking (device-private) */}
+        <Route path="/order/:orderId" element={<OrderTrackingPage />} />
 
         {/* Login */}
         <Route path="/login" element={<LoginPage />} />
