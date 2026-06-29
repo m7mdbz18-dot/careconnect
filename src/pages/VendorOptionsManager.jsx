@@ -14,6 +14,7 @@ export default function VendorOptionsManager() {
   const [editingVendor, setEditingVendor] = useState(false)
   const [vendorForm, setVendorForm] = useState({})
   const [savingVendor, setSavingVendor] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => { load() }, [vendorId])
 
@@ -30,7 +31,8 @@ export default function VendorOptionsManager() {
 
   async function saveVendor() {
     setSavingVendor(true)
-    await supabase.from('vendors').update({
+    setSaveError('')
+    const { error } = await supabase.from('vendors').update({
       name: vendorForm.name.trim(),
       description: vendorForm.description.trim() || null,
       emoji: vendorForm.emoji,
@@ -40,6 +42,10 @@ export default function VendorOptionsManager() {
       password: vendorForm.password.trim() || null,
     }).eq('id', vendorId)
     setSavingVendor(false)
+    if (error) {
+      setSaveError(error.message)
+      return
+    }
     setEditingVendor(false)
     load()
   }
@@ -126,6 +132,7 @@ export default function VendorOptionsManager() {
                 />
               </div>
             ))}
+            {saveError && <p style={{ color: '#A32D2D', fontSize: 13, margin: '0 0 10px' }}>Error: {saveError}</p>}
             <button onClick={saveVendor} disabled={savingVendor}
               style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
               {savingVendor ? 'Saving...' : 'Save changes'}
