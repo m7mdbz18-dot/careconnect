@@ -15,7 +15,6 @@ export default function PatientPage() {
       <p style={{ margin: '16px 16px 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Services</p>
 
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <ServiceCard icon="🍽️" iconBg="#E1F5EE" title="Tomorrow's meals" desc="Choose breakfast, lunch & dinner" onClick={() => navigate(`/q/${ward}/${room}/${bed}/meals`)} />
         <ServiceCard icon="👕" iconBg="#EAF3DE" title="Laundry pickup" desc="Schedule a collection" onClick={() => navigate(`/q/${ward}/${room}/${bed}/laundry`)} />
         <ServiceCard icon="✨" iconBg="#E6F1FB" title="Housekeeping" desc="Room cleaning request" onClick={() => navigate(`/q/${ward}/${room}/${bed}/housekeeping`)} />
       </div>

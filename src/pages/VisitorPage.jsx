@@ -1,27 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { supabase } from '../supabase'
 
 export default function VisitorPage() {
   const { ward, room, bed } = useParams()
   const navigate = useNavigate()
-  const [restaurants, setRestaurants] = useState([])
-
-useEffect(() => {
-    loadRestaurants()
-    const channel = supabase
-      .channel('visitor-restaurants')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => {
-        loadRestaurants()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
-
-  function loadRestaurants() {
-    supabase.from('restaurants').select('*').order('created_at', { ascending: true })
-      .then(({ data }) => setRestaurants(data || []))
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
@@ -35,28 +16,6 @@ useEffect(() => {
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <ServiceCard icon="👕" iconBg="#EAF3DE" title="Laundry pickup" desc="Schedule for this room" onClick={() => navigate(`/q/${ward}/${room}/${bed}/laundry`)} />
         <ServiceCard icon="✨" iconBg="#E6F1FB" title="Housekeeping" desc="Request room cleaning" onClick={() => navigate(`/q/${ward}/${room}/${bed}/housekeeping`)} />
-      </div>
-
-      <p style={sectionLabel}>Hospital restaurants</p>
-      <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {restaurants.length === 0 ? (
-          <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 16 }}>No restaurants listed yet</p>
-        ) : restaurants.map(r => (
-          <div key={r.id} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', border: '0.5px solid #eee' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: '#FAEEDA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🍴</div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>{r.name}</p>
-                <p style={{ margin: '2px 0 4px', fontSize: 12, color: '#888' }}>{r.hours} · {r.ext}</p>
-                {r.phone && (
-                  <a href={`tel:${r.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#0F6E56', fontWeight: 600, textDecoration: 'none', background: '#E1F5EE', padding: '4px 10px', borderRadius: 20 }}>
-                    📞 Tap to call
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       <p style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 32 }}>CareConnect · Powered by your care team</p>

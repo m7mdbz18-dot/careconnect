@@ -5,40 +5,28 @@ import { logout } from '../auth'
 
 export default function AdminPage() {
   const navigate = useNavigate()
-  const [stats, setStats] = useState({ meals: 0, active: 0, restaurants: 0 })
+  const [stats, setStats] = useState({ active: 0 })
 
   useEffect(() => {
     loadStats()
     const channel = supabase
       .channel('admin-stats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_selections' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, () => loadStats())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => loadStats())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
 
   async function loadStats() {
-    const meals = await supabase.from('meal_selections').select('id', { count: 'exact', head: true })
     const active = await supabase.from('service_requests').select('id', { count: 'exact', head: true }).neq('status', 'done')
-    const restaurants = await supabase.from('restaurants').select('id', { count: 'exact', head: true })
-    setStats({
-      meals: meals.count || 0,
-      active: active.count || 0,
-      restaurants: restaurants.count || 0,
-    })
+    setStats({ active: active.count || 0 })
   }
 
   const sections = [
     { title: 'QR Code Generator', desc: 'Create & print bed QR codes', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
-    { title: 'Restaurant Directory', desc: 'Add or remove visitor restaurants', icon: '🍴', path: '/admin/restaurants', bg: '#FCEBEB' },
-    { title: 'Edit Menu', desc: 'Add, remove & toggle meal options', icon: '📋', path: '/staff/menu', bg: '#E1F5EE' },
   ]
 
   const statCards = [
-    { label: 'Meal selections', value: stats.meals, bg: '#E1F5EE', color: '#085041' },
     { label: 'Active requests', value: stats.active, bg: '#FAEEDA', color: '#633806' },
-    { label: 'Restaurants', value: stats.restaurants, bg: '#E6F1FB', color: '#0C447C' },
   ]
 
   return (
@@ -80,7 +68,6 @@ export default function AdminPage() {
         <p style={{ margin: '20px 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Staff dashboards</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            { title: 'Restaurant / Kitchen', icon: '🍽️', path: '/staff/restaurant' },
             { title: 'Housekeeping', icon: '✨', path: '/staff/housekeeping' },
             { title: 'Laundry', icon: '👕', path: '/staff/laundry' },
           ].map(s => (
