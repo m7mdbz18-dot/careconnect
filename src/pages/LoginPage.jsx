@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login } from '../auth'
+import { login, setVendorSession } from '../auth'
+import { supabase } from '../supabase'
 
 const destinations = {
-  admin: '/admin',
-  restaurant: '/staff/restaurant',
+  admin:        '/admin',
   housekeeping: '/staff/housekeeping',
-  laundry: '/staff/laundry',
+  laundry:      '/staff/laundry',
 }
 
 export default function LoginPage() {
@@ -14,11 +14,33 @@ export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleLogin() {
+  async function handleLogin() {
+    if (loading) return
+    setError('')
+
+    // Check hardcoded staff accounts first
     const role = login(username, password)
     if (role) {
-      navigate(destinations[role])
+      navigate(destinations[role] || '/admin')
+      return
+    }
+
+    // Fall back to Supabase vendor accounts
+    setLoading(true)
+    const { data } = await supabase
+      .from('vendors')
+      .select('id, name, username, password, emoji')
+      .eq('username', username.trim().toLowerCase())
+      .eq('password', password)
+      .eq('active', true)
+      .single()
+    setLoading(false)
+
+    if (data) {
+      setVendorSession(data)
+      navigate('/staff/vendor')
     } else {
       setError('Wrong username or password')
     }
@@ -37,7 +59,7 @@ export default function LoginPage() {
           onChange={e => { setUsername(e.target.value); setError('') }}
           onKeyDown={e => e.key === 'Enter' && handleLogin()}
           placeholder="e.g. admin"
-          style={{ width: '100%', padding: '12px 14px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, boxSizing: 'border-box', marginBottom: 14 }}
+          style={{ width: '100%', padding: '12px 14px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, boxSizing: 'border-box', marginBottom: 14, outline: 'none' }}
         />
         <p style={{ margin: '0 0 6px', fontSize: 12, color: '#888', fontWeight: 600 }}>Password</p>
         <input
@@ -46,13 +68,14 @@ export default function LoginPage() {
           onChange={e => { setPassword(e.target.value); setError('') }}
           onKeyDown={e => e.key === 'Enter' && handleLogin()}
           placeholder="••••••••"
-          style={{ width: '100%', padding: '12px 14px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '12px 14px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
         />
 
         {error && <p style={{ color: '#A32D2D', fontSize: 13, margin: '12px 0 0' }}>{error}</p>}
 
-        <button onClick={handleLogin} style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 18 }}>
-          Sign in
+        <button onClick={handleLogin} disabled={loading}
+          style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: loading ? '#ddd' : '#0F6E56', color: loading ? '#aaa' : '#fff', fontWeight: 700, fontSize: 15, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 18 }}>
+          {loading ? 'Signing in...' : 'Sign in'}
         </button>
       </div>
 

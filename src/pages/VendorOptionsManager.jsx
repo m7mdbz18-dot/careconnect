@@ -23,7 +23,7 @@ export default function VendorOptionsManager() {
       supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).order('sort_order').order('created_at'),
     ])
     setVendor(v)
-    setVendorForm({ name: v?.name || '', description: v?.description || '', emoji: v?.emoji || '🛒', pdf_url: v?.pdf_url || '', sort_order: String(v?.sort_order ?? 0) })
+    setVendorForm({ name: v?.name || '', description: v?.description || '', emoji: v?.emoji || '🛒', pdf_url: v?.pdf_url || '', sort_order: String(v?.sort_order ?? 0), username: v?.username || '', password: v?.password || '' })
     setOptions(o || [])
     setLoading(false)
   }
@@ -36,6 +36,8 @@ export default function VendorOptionsManager() {
       emoji: vendorForm.emoji,
       pdf_url: vendorForm.pdf_url.trim() || null,
       sort_order: parseInt(vendorForm.sort_order) || 0,
+      username: vendorForm.username.trim().toLowerCase() || null,
+      password: vendorForm.password.trim() || null,
     }).eq('id', vendorId)
     setSavingVendor(false)
     setEditingVendor(false)
@@ -110,6 +112,8 @@ export default function VendorOptionsManager() {
               { key: 'emoji', label: 'Emoji', placeholder: '🛒' },
               { key: 'pdf_url', label: 'Menu PDF URL', placeholder: 'https://...' },
               { key: 'sort_order', label: 'Sort order', placeholder: '0', type: 'number' },
+              { key: 'username', label: 'Dashboard login username', placeholder: 'e.g. starbucks' },
+              { key: 'password', label: 'Dashboard login password', placeholder: 'Set a password for this vendor' },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 10 }}>
                 <p style={{ margin: '0 0 4px', fontSize: 12, color: '#888' }}>{f.label}</p>
