@@ -15,6 +15,7 @@ import Protected from './pages/Protected'
 import VendorManager from './pages/VendorManager'
 import VendorOptionsManager from './pages/VendorOptionsManager'
 import OrderTrackingPage from './pages/OrderTrackingPage'
+import WaitingRoomPage from './pages/WaitingRoomPage'
 
 function App() {
   return (
@@ -28,6 +29,11 @@ function App() {
         <Route path="/q/:ward/:room/:bed/vendors/:vendorId" element={<VendorPage />} />
         <Route path="/q/:ward/:room/:bed/laundry" element={<LaundryRequest />} />
         <Route path="/q/:ward/:room/:bed/housekeeping" element={<HousekeepingRequest />} />
+
+        {/* Waiting room entry */}
+        <Route path="/w/:area" element={<WaitingRoomPage />} />
+        <Route path="/w/:area/vendors" element={<VendorListPage />} />
+        <Route path="/w/:area/vendors/:vendorId" element={<VendorPage />} />
 
         {/* Order tracking (device-private) */}
         <Route path="/order/:orderId" element={<OrderTrackingPage />} />

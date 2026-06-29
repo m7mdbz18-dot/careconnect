@@ -3,23 +3,38 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 export default function VendorListPage() {
-  const { ward, room, bed } = useParams()
+  const { ward, room, bed, area } = useParams()
   const navigate = useNavigate()
   const [vendors, setVendors] = useState([])
   const [loading, setLoading] = useState(true)
+
+  const isWaiting = !!area
+  const displayArea = area ? decodeURIComponent(area) : null
 
   useEffect(() => {
     supabase.from('vendors').select('*').eq('active', true).order('sort_order').order('created_at')
       .then(({ data }) => { setVendors(data || []); setLoading(false) })
   }, [])
 
+  function vendorPath(vendorId) {
+    return isWaiting
+      ? `/w/${area}/vendors/${vendorId}`
+      : `/q/${ward}/${room}/${bed}/vendors/${vendorId}`
+  }
+
+  function backPath() {
+    return isWaiting ? `/w/${area}` : -1
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button onClick={() => isWaiting ? navigate(`/w/${area}`) : navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Order food & items</h1>
-          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>Room {room} · Bed {bed.toUpperCase()} · Ward {ward.toUpperCase()}</p>
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
+            {isWaiting ? displayArea : `Room ${room} · Bed ${bed.toUpperCase()} · Ward ${ward.toUpperCase()}`}
+          </p>
         </div>
       </div>
 
@@ -35,7 +50,7 @@ export default function VendorListPage() {
       ) : (
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {vendors.map(v => (
-            <div key={v.id} onClick={() => navigate(`/q/${ward}/${room}/${bed}/vendors/${v.id}`)}
+            <div key={v.id} onClick={() => navigate(vendorPath(v.id))}
               style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: '0.5px solid #eee' }}>
               <div style={{ width: 46, height: 46, borderRadius: 11, background: '#E1F5EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
                 {v.emoji}
