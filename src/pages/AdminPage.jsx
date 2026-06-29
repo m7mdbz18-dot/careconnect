@@ -6,12 +6,15 @@ import { logout } from '../auth'
 export default function AdminPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState({ active: 0 })
+  const [vendors, setVendors] = useState([])
 
   useEffect(() => {
     loadStats()
+    loadVendors()
     const channel = supabase
       .channel('admin-stats')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, () => loadStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => loadVendors())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -21,9 +24,14 @@ export default function AdminPage() {
     setStats({ active: active.count || 0 })
   }
 
+  async function loadVendors() {
+    const { data } = await supabase.from('vendors').select('id, name, emoji, active').order('sort_order').order('created_at')
+    setVendors(data || [])
+  }
+
   const sections = [
     { title: 'Manage Vendors', desc: 'Add vendors & their ordering options', icon: '🛒', path: '/admin/vendors', bg: '#FAEEDA' },
-    { title: 'QR Code Generator', desc: 'Create & print bed QR codes', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
+    { title: 'QR Code Generator', desc: 'Create & print bed & waiting room QRs', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
   ]
 
   const statCards = [
@@ -53,7 +61,7 @@ export default function AdminPage() {
         </div>
 
         <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Manage</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
           {sections.map(s => (
             <div key={s.title} onClick={() => navigate(s.path)} style={{ background: '#fff', borderRadius: 12, padding: '16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: '0.5px solid #eee' }}>
               <div style={{ width: 46, height: 46, borderRadius: 11, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{s.icon}</div>
@@ -66,7 +74,21 @@ export default function AdminPage() {
           ))}
         </div>
 
-        <p style={{ margin: '20px 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Staff dashboards</p>
+        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Vendor dashboards</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {vendors.length === 0 ? (
+            <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No vendors yet — add them in Manage Vendors</p>
+          ) : vendors.map(v => (
+            <div key={v.id} onClick={() => navigate(`/staff/vendor?id=${v.id}`)}
+              style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: '0.5px solid #eee', opacity: v.active ? 1 : 0.5 }}>
+              <span style={{ fontSize: 22 }}>{v.emoji}</span>
+              <p style={{ margin: 0, flex: 1, fontWeight: 500, fontSize: 14, color: '#111' }}>{v.name}</p>
+              <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Staff dashboards</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { title: 'Housekeeping', icon: '✨', path: '/staff/housekeeping' },

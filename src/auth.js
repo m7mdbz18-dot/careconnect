@@ -18,7 +18,18 @@ export function getRole() {
   return sessionStorage.getItem('cc_role')
 }
 
+export function setVendorSession(vendor) {
+  sessionStorage.setItem('cc_role', 'vendor')
+  sessionStorage.setItem('cc_user', vendor.username)
+  sessionStorage.setItem('cc_vendor_id', vendor.id)
+}
+
+export function getVendorId() {
+  return sessionStorage.getItem('cc_vendor_id')
+}
+
 export function logout() {
   sessionStorage.removeItem('cc_role')
   sessionStorage.removeItem('cc_user')
+  sessionStorage.removeItem('cc_vendor_id')
 }

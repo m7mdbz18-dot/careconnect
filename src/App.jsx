@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage'
 import Protected from './pages/Protected'
 import VendorManager from './pages/VendorManager'
 import VendorOptionsManager from './pages/VendorOptionsManager'
+import VendorDashboard from './pages/VendorDashboard'
 import OrderTrackingPage from './pages/OrderTrackingPage'
 import WaitingRoomPage from './pages/WaitingRoomPage'
 
@@ -42,6 +43,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
 
         {/* Staff (protected) */}
+        <Route path="/staff/vendor" element={<Protected allow="vendor"><VendorDashboard /></Protected>} />
         <Route path="/staff/housekeeping" element={<Protected allow="housekeeping"><HousekeepingDashboard /></Protected>} />
         <Route path="/staff/laundry" element={<Protected allow="laundry"><LaundryDashboard /></Protected>} />
 
