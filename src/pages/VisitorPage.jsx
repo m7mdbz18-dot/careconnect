@@ -14,6 +14,7 @@ export default function VisitorPage() {
 
       <p style={sectionLabel}>Request for patient</p>
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <ServiceCard icon="🛒" iconBg="#FAEEDA" title="Order food & items" desc="Restaurants, café, flowers & more" onClick={() => navigate(`/q/${ward}/${room}/${bed}/vendors`)} />
         <ServiceCard icon="👕" iconBg="#EAF3DE" title="Laundry pickup" desc="Schedule for this room" onClick={() => navigate(`/q/${ward}/${room}/${bed}/laundry`)} />
         <ServiceCard icon="✨" iconBg="#E6F1FB" title="Housekeeping" desc="Request room cleaning" onClick={() => navigate(`/q/${ward}/${room}/${bed}/housekeeping`)} />
       </div>

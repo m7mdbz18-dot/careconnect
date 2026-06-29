@@ -4,6 +4,8 @@ import PatientPage from './pages/PatientPage'
 import VisitorPage from './pages/VisitorPage'
 import LaundryRequest from './pages/LaundryRequest'
 import HousekeepingRequest from './pages/HousekeepingRequest'
+import VendorListPage from './pages/VendorListPage'
+import VendorPage from './pages/VendorPage'
 import HousekeepingDashboard from './pages/HousekeepingDashboard'
 import LaundryDashboard from './pages/LaundryDashboard'
 import QRGenerator from './pages/QRGenerator'
@@ -19,6 +21,8 @@ function App() {
         <Route path="/q/:ward/:room/:bed" element={<WelcomePage />} />
         <Route path="/q/:ward/:room/:bed/patient" element={<PatientPage />} />
         <Route path="/q/:ward/:room/:bed/visitor" element={<VisitorPage />} />
+        <Route path="/q/:ward/:room/:bed/vendors" element={<VendorListPage />} />
+        <Route path="/q/:ward/:room/:bed/vendors/:vendorId" element={<VendorPage />} />
         <Route path="/q/:ward/:room/:bed/laundry" element={<LaundryRequest />} />
         <Route path="/q/:ward/:room/:bed/housekeeping" element={<HousekeepingRequest />} />
 
