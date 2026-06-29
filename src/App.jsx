@@ -12,6 +12,8 @@ import QRGenerator from './pages/QRGenerator'
 import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
 import Protected from './pages/Protected'
+import VendorManager from './pages/VendorManager'
+import VendorOptionsManager from './pages/VendorOptionsManager'
 
 function App() {
   return (
@@ -36,6 +38,8 @@ function App() {
         {/* Admin (protected) */}
         <Route path="/admin" element={<Protected allow="admin"><AdminPage /></Protected>} />
         <Route path="/admin/qr" element={<Protected allow="admin"><QRGenerator /></Protected>} />
+        <Route path="/admin/vendors" element={<Protected allow="admin"><VendorManager /></Protected>} />
+        <Route path="/admin/vendors/:vendorId" element={<Protected allow="admin"><VendorOptionsManager /></Protected>} />
       </Routes>
     </BrowserRouter>
   )
