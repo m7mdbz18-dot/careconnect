@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { logout, getRole, getVendorId } from '../auth'
+import { VAPID_PUBLIC_KEY } from '../vapid'
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
 
 const STATUS_LABEL = {
   pending:   { label: 'Pending',   bg: '#FEF3C7', color: '#92400E' },
@@ -36,6 +44,38 @@ export default function VendorDashboard() {
   const [tab, setTab] = useState('active')
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(null)
+  const [notifStatus, setNotifStatus] = useState(
+    !('Notification' in window) ? 'unsupported' : Notification.permission
+  )
+
+  async function setupPush(vid) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    if (VAPID_PUBLIC_KEY === 'YOUR_VAPID_PUBLIC_KEY_HERE') return
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      })
+      const { endpoint, keys } = sub.toJSON()
+      await supabase.from('push_subscriptions').upsert(
+        { vendor_id: vid, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+        { onConflict: 'vendor_id,endpoint' }
+      )
+      setNotifStatus('granted')
+    } catch {
+      // permission denied or SW error — fail silently
+    }
+  }
+
+  async function requestPush() {
+    if (!vendorId) return
+    const permission = await Notification.requestPermission()
+    setNotifStatus(permission)
+    if (permission === 'granted') setupPush(vendorId)
+  }
 
   useEffect(() => {
     if (!vendorId) { navigate('/login'); return }
@@ -53,6 +93,7 @@ export default function VendorDashboard() {
   async function loadVendor() {
     const { data } = await supabase.from('vendors').select('id, name, emoji, description').eq('id', vendorId).single()
     setVendor(data)
+    if (data && Notification.permission === 'granted') setupPush(data.id)
   }
 
   async function loadOrders() {
@@ -108,6 +149,25 @@ export default function VendorDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Notification banner */}
+      {notifStatus === 'default' && (
+        <div style={{ margin: '12px 16px 0', background: '#FAEEDA', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }}>🔔</span>
+          <p style={{ margin: 0, flex: 1, fontSize: 13, color: '#633806' }}>Enable notifications to get alerted when new orders arrive — even with this tab in the background.</p>
+          <button onClick={requestPush} style={{ background: '#0F6E56', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Enable</button>
+        </div>
+      )}
+      {notifStatus === 'denied' && (
+        <div style={{ margin: '12px 16px 0', background: '#F3F4F6', borderRadius: 12, padding: '10px 16px' }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>🔕 Notifications blocked. Enable them in your browser settings to receive order alerts.</p>
+        </div>
+      )}
+      {notifStatus === 'granted' && (
+        <div style={{ margin: '12px 16px 0', background: '#E1F5EE', borderRadius: 12, padding: '10px 16px' }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#085041' }}>🔔 Push notifications active — you'll be alerted for new orders.</p>
+        </div>
+      )}
 
       {/* Orders */}
       <div style={{ padding: 16 }}>
