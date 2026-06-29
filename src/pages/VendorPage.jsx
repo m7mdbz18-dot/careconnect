@@ -26,6 +26,7 @@ export default function VendorPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [trackingCode, setTrackingCode] = useState('')
+  const [orderId, setOrderId] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -55,7 +56,7 @@ export default function VendorPage() {
     if (selected.length === 0 || submitting) return
     setSubmitting(true)
     const code = generateTrackingCode()
-    const { error } = await supabase.from('orders').insert({
+    const { data, error } = await supabase.from('orders').insert({
       device_token: getDeviceToken(),
       tracking_code: code,
       vendor_id: vendorId,
@@ -66,9 +67,10 @@ export default function VendorPage() {
       bed: bed.toUpperCase(),
       customer_name: name.trim() || null,
       customer_phone: phone.trim() || null,
-    })
+    }).select('id').single()
     setSubmitting(false)
     if (error) { alert('Something went wrong. Please try again.'); return }
+    setOrderId(data.id)
     setTrackingCode(code)
     setStep('success')
   }
@@ -116,7 +118,12 @@ export default function VendorPage() {
           <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>💳 Pay in person on delivery — cash or card</p>
         </div>
 
-        <button onClick={() => navigate(homePath)} style={{ marginTop: 24, padding: '13px 40px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+        <button onClick={() => navigate(`/order/${orderId}`)}
+          style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '14px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+          Track your order →
+        </button>
+        <button onClick={() => navigate(homePath)}
+          style={{ marginTop: 10, width: '100%', maxWidth: 360, padding: '13px', borderRadius: 10, background: 'none', color: '#0F6E56', border: '1.5px solid #0F6E56', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
           Back to home
         </button>
       </div>
