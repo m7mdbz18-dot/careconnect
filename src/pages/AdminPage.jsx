@@ -22,6 +22,7 @@ export default function AdminPage() {
   }
 
   const sections = [
+    { title: 'Manage Vendors', desc: 'Add vendors & their ordering options', icon: '🛒', path: '/admin/vendors', bg: '#FAEEDA' },
     { title: 'QR Code Generator', desc: 'Create & print bed QR codes', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
   ]
 
