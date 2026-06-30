@@ -51,7 +51,7 @@ export default function VendorDashboard() {
   const [menuLoading, setMenuLoading] = useState(false)
   const [menuLoaded, setMenuLoaded] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [addForm, setAddForm] = useState({ name: '', description: '', category: '', sort_order: '0' })
+  const [addForm, setAddForm] = useState({ name: '', description: '', category: '', sort_order: '0', price: '' })
   const [formExtras, setFormExtras] = useState([])
   const [formExtraInput, setFormExtraInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -96,13 +96,12 @@ export default function VendorDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [vendorId])
 
-  // Load menu when tab is first opened
   useEffect(() => {
     if (tab === 'menu' && !menuLoaded) loadMenu()
   }, [tab])
 
   async function loadVendor() {
-    const { data } = await supabase.from('vendors').select('id, name, emoji, description').eq('id', vendorId).single()
+    const { data } = await supabase.from('vendors').select('id, name, emoji, description, tax_rate').eq('id', vendorId).single()
     setVendor(data)
     if (data && Notification.permission === 'granted') setupPush(data.id)
   }
@@ -136,11 +135,12 @@ export default function VendorDashboard() {
       description: addForm.description.trim() || null,
       category: addForm.category.trim() || null,
       sort_order: parseInt(addForm.sort_order) || 0,
+      price: parseFloat(addForm.price) || null,
       extras: formExtras.length > 0 ? formExtras : null,
       active: true,
     })
     setSaving(false)
-    setAddForm({ name: '', description: '', category: '', sort_order: '0' })
+    setAddForm({ name: '', description: '', category: '', sort_order: '0', price: '' })
     setFormExtras([])
     setFormExtraInput('')
     setShowAddForm(false)
@@ -226,7 +226,6 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* Notification banners — only on orders tabs */}
       {tab !== 'menu' && notifStatus === 'default' && (
         <div style={{ margin: '12px 16px 0', background: '#FAEEDA', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 20 }}>&#128276;</span>
@@ -245,7 +244,6 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* Orders tab */}
       {(tab === 'active' || tab === 'done') && (
         <div style={{ padding: 16 }}>
           {loading ? (
@@ -276,13 +274,30 @@ export default function VendorDashboard() {
                     </div>
                     <div style={{ padding: '10px 14px', borderBottom: '0.5px solid #f0f0f0' }}>
                       {(order.items || []).map((item, i) => (
-                        <div key={i} style={{ margin: '3px 0' }}>
-                          <p style={{ margin: 0, fontSize: 13, color: '#111' }}>· {item.name}</p>
-                          {item.extras && item.extras.length > 0 && (
-                            <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                        <div key={i} style={{ margin: '3px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, fontSize: 13, color: '#111' }}>&#183; {item.name}</p>
+                            {item.extras && item.extras.length > 0 && (
+                              <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                            )}
+                          </div>
+                          {item.price > 0 && (
+                            <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, marginLeft: 8, flexShrink: 0 }}>
+                              AED {Number(item.price).toFixed(2)}
+                            </p>
                           )}
                         </div>
                       ))}
+                      {order.total > 0 && (
+                        <div style={{ borderTop: '0.5px solid #f0f0f0', marginTop: 8, paddingTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                          {order.tax_amount > 0 && (
+                            <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>incl. tax AED {Number(order.tax_amount).toFixed(2)}</p>
+                          )}
+                          <p style={{ margin: '0 0 0 auto', fontSize: 14, color: '#0F6E56', fontWeight: 700 }}>
+                            Total: AED {Number(order.total).toFixed(2)}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: action ? '0.5px solid #f0f0f0' : 'none' }}>
                       <div>
@@ -317,7 +332,6 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* Menu tab */}
       {tab === 'menu' && (
         <div style={{ padding: 16 }}>
           <button onClick={() => { setShowAddForm(v => !v); setFormExtras([]); setFormExtraInput('') }}
@@ -331,6 +345,7 @@ export default function VendorDashboard() {
                 { key: 'name',        label: 'Name *',      placeholder: 'e.g. Latte' },
                 { key: 'description', label: 'Description', placeholder: 'e.g. Espresso with steamed milk' },
                 { key: 'category',    label: 'Category',    placeholder: 'e.g. Hot drinks' },
+                { key: 'price',       label: 'Price (AED)', placeholder: 'e.g. 15.00', type: 'number' },
                 { key: 'sort_order',  label: 'Sort order',  placeholder: '0', type: 'number' },
               ].map(f => (
                 <div key={f.key} style={{ marginBottom: 10 }}>
@@ -347,7 +362,7 @@ export default function VendorDashboard() {
                   {formExtras.map(e => (
                     <span key={e} onClick={() => setFormExtras(f => f.filter(x => x !== e))}
                       style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', cursor: 'pointer', border: '1px solid #A8DECE' }}>
-                      {e} ×
+                      {e} &#215;
                     </span>
                   ))}
                 </div>
@@ -386,6 +401,11 @@ export default function VendorDashboard() {
                         <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: opt.active ? '#111' : '#aaa' }}>{opt.name}</p>
                         {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#aaa' }}>{opt.description}</p>}
                       </div>
+                      {opt.price > 0 && (
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>
+                          AED {Number(opt.price).toFixed(2)}
+                        </p>
+                      )}
                     </div>
 
                     <div style={{ padding: '0 14px 12px' }}>
@@ -394,7 +414,7 @@ export default function VendorDashboard() {
                           {(opt.extras || []).map(e => (
                             <span key={e} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #A8DECE' }}>
                               {e}
-                              <span onClick={() => removeExtraFromItem(opt, e)} style={{ cursor: 'pointer', color: '#0F6E56', fontWeight: 700, lineHeight: 1 }}>×</span>
+                              <span onClick={() => removeExtraFromItem(opt, e)} style={{ cursor: 'pointer', color: '#0F6E56', fontWeight: 700, lineHeight: 1 }}>&#215;</span>
                             </span>
                           ))}
                         </div>
@@ -411,7 +431,7 @@ export default function VendorDashboard() {
                           </button>
                           <button onClick={() => { setAddingExtraFor(null); setExtraInput('') }}
                             style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
-                            ×
+                            &#215;
                           </button>
                         </div>
                       ) : (

@@ -15,6 +15,10 @@ function generateTrackingCode() {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
 
+function fmtPrice(n) {
+  return 'AED ' + Number(n || 0).toFixed(2)
+}
+
 export default function VendorPage() {
   const { ward, room, bed, area, vendorId } = useParams()
   const navigate = useNavigate()
@@ -36,6 +40,12 @@ export default function VendorPage() {
   const homePath = isWaiting ? '/w/' + area : '/q/' + ward + '/' + room + '/' + bed + '/' + userType
   const canPlace = !submitting && !(isWaiting && (!name.trim() || !phone.trim()))
 
+  const taxRate = vendor?.tax_rate || 0
+  const subtotal = selected.reduce((sum, item) => sum + (item.price || 0), 0)
+  const taxAmt = subtotal * (taxRate / 100)
+  const total = subtotal + taxAmt
+  const hasPrices = selected.some(item => item.price > 0)
+
   useEffect(() => {
     Promise.all([
       supabase.from('vendors').select('*').eq('id', vendorId).single(),
@@ -51,7 +61,7 @@ export default function VendorPage() {
     setSelected(s =>
       s.find(x => x.id === opt.id)
         ? s.filter(x => x.id !== opt.id)
-        : [...s, { id: opt.id, name: opt.name, extras: [] }]
+        : [...s, { id: opt.id, name: opt.name, extras: [], price: opt.price || null }]
     )
   }
 
@@ -79,6 +89,9 @@ export default function VendorPage() {
       ...location,
       customer_name: name.trim() || null,
       customer_phone: phone.trim() || null,
+      subtotal: hasPrices ? subtotal : null,
+      tax_amount: hasPrices && taxAmt > 0 ? taxAmt : null,
+      total: hasPrices ? total : null,
     }).select('id').single()
     setSubmitting(false)
     if (error) { alert('Something went wrong. Please try again.'); return }
@@ -116,24 +129,45 @@ export default function VendorPage() {
           <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>Show this to the delivery person</p>
         </div>
         <div style={{ background: '#fff', borderRadius: 14, border: '0.5px solid #eee', padding: '14px 18px', marginTop: 12, width: '100%', maxWidth: 360 }}>
-          <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order &#183; {vendor.emoji} {vendor.name}</p>
           {selected.map(item => (
-            <div key={item.id} style={{ margin: '4px 0' }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#111' }}>· {item.name}</p>
-              {item.extras && item.extras.length > 0 && (
-                <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
-              )}
+            <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#111' }}>&#183; {item.name}</p>
+                {item.extras && item.extras.length > 0 && (
+                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                )}
+              </div>
+              {item.price > 0 && <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(item.price)}</p>}
             </div>
           ))}
+          {hasPrices && (
+            <div style={{ borderTop: '0.5px solid #f0f0f0', marginTop: 10, paddingTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Subtotal</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{fmtPrice(subtotal)}</p>
+              </div>
+              {taxRate > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <p style={{ margin: 0, fontSize: 12, color: '#888' }}>Tax ({taxRate}%)</p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{fmtPrice(taxAmt)}</p>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '0.5px solid #f0f0f0', paddingTop: 8, marginTop: 4 }}>
+                <p style={{ margin: 0, fontSize: 15, color: '#111', fontWeight: 700 }}>Total</p>
+                <p style={{ margin: 0, fontSize: 15, color: '#0F6E56', fontWeight: 700 }}>{fmtPrice(total)}</p>
+              </div>
+            </div>
+          )}
           {name && <p style={{ margin: '10px 0 0', fontSize: 12, color: '#aaa' }}>Name: {name}</p>}
           {phone && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#aaa' }}>Phone: {phone}</p>}
         </div>
         <div style={{ background: '#E1F5EE', borderRadius: 12, padding: '12px 16px', marginTop: 12, width: '100%', maxWidth: 360 }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery — cash or card</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery &#8212; cash or card</p>
         </div>
         <button onClick={() => navigate('/order/' + orderId)}
           style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '14px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          Track your order →
+          Track your order &#8594;
         </button>
         <button onClick={() => navigate(homePath)}
           style={{ marginTop: 10, width: '100%', maxWidth: 360, padding: '13px', borderRadius: 10, background: 'none', color: '#0F6E56', border: '1.5px solid #0F6E56', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
@@ -149,7 +183,7 @@ export default function VendorPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <button onClick={() => step === 'checkout' ? setStep('select') : navigate(-1)}
             style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0, flexShrink: 0 }}>
-            ‹
+            &#8249;
           </button>
           <span style={{ fontSize: 26 }}>{vendor.emoji}</span>
           <div>
@@ -173,7 +207,7 @@ export default function VendorPage() {
         <div style={{ padding: '16px 0' }}>
           {Object.keys(grouped).length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-              <p style={{ fontSize: 36 }}>&#128shopping_cart;</p>
+              <p style={{ fontSize: 36 }}>&#128722;</p>
               <p style={{ fontSize: 14 }}>No items available yet</p>
             </div>
           ) : Object.entries(grouped).map(([cat, items]) => (
@@ -193,6 +227,11 @@ export default function VendorPage() {
                           <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: isSelected ? '#085041' : '#111' }}>{opt.name}</p>
                           {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{opt.description}</p>}
                         </div>
+                        {opt.price > 0 && (
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isSelected ? '#085041' : '#0F6E56', flexShrink: 0 }}>
+                            {fmtPrice(opt.price)}
+                          </p>
+                        )}
                       </div>
                       {isSelected && extras.length > 0 && (
                         <div style={{ padding: '0 14px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -220,15 +259,36 @@ export default function VendorPage() {
       {tab === 'order' && step === 'checkout' && (
         <div style={{ padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 14 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
+            <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order &#183; {vendor.emoji} {vendor.name}</p>
             {selected.map(item => (
-              <div key={item.id} style={{ margin: '4px 0' }}>
-                <p style={{ margin: 0, fontSize: 14, color: '#111' }}>· {item.name}</p>
-                {item.extras && item.extras.length > 0 && (
-                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
-                )}
+              <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#111' }}>&#183; {item.name}</p>
+                  {item.extras && item.extras.length > 0 && (
+                    <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                  )}
+                </div>
+                {item.price > 0 && <p style={{ margin: 0, fontSize: 14, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(item.price)}</p>}
               </div>
             ))}
+            {hasPrices && (
+              <div style={{ borderTop: '0.5px solid #f0f0f0', marginTop: 12, paddingTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: '#888' }}>Subtotal</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{fmtPrice(subtotal)}</p>
+                </div>
+                {taxRate > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: '#888' }}>Tax ({taxRate}%)</p>
+                    <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{fmtPrice(taxAmt)}</p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '0.5px solid #f0f0f0', paddingTop: 8, marginTop: 4 }}>
+                  <p style={{ margin: 0, fontSize: 15, color: '#111', fontWeight: 700 }}>Total</p>
+                  <p style={{ margin: 0, fontSize: 15, color: '#0F6E56', fontWeight: 700 }}>{fmtPrice(total)}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '16px', marginBottom: 14 }}>
@@ -247,12 +307,12 @@ export default function VendorPage() {
           </div>
 
           <div style={{ background: '#E1F5EE', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
-            <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery — cash or card</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery &#8212; cash or card</p>
           </div>
 
           <button onClick={placeOrder} disabled={!canPlace}
             style={{ width: '100%', padding: '15px', borderRadius: 10, border: 'none', background: canPlace ? '#0F6E56' : '#ddd', color: canPlace ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: canPlace ? 'pointer' : 'not-allowed' }}>
-            {submitting ? 'Placing order...' : 'Place order'}
+            {submitting ? 'Placing order...' : hasPrices ? 'Place order · ' + fmtPrice(total) : 'Place order'}
           </button>
         </div>
       )}
@@ -261,7 +321,7 @@ export default function VendorPage() {
         <div style={{ padding: 16 }}>
           {vendor.pdf_url ? (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#888' }}>Pinch to zoom · Swipe to browse</p>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#888' }}>Pinch to zoom &#183; Swipe to browse</p>
               <iframe src={vendor.pdf_url} style={{ width: '100%', height: '75vh', border: 'none', borderRadius: 12 }} title={vendor.name + ' menu'} />
             </>
           ) : (
@@ -277,7 +337,7 @@ export default function VendorPage() {
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '12px 16px', background: '#fff', borderTop: '0.5px solid #eee' }}>
           <button onClick={() => setStep('checkout')}
             style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-            Continue · {selected.length} item{selected.length !== 1 ? 's' : ''} selected
+            Continue &#183; {selected.length} item{selected.length !== 1 ? 's' : ''}{hasPrices ? ' · ' + fmtPrice(total) : ''}
           </button>
         </div>
       )}

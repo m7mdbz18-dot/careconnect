@@ -12,7 +12,7 @@ export default function VendorOptionsManager() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: '', description: '', category: '', sort_order: '0' })
+  const [form, setForm] = useState({ name: '', description: '', category: '', sort_order: '0', price: '' })
   const [formExtras, setFormExtras] = useState([])
   const [formExtraInput, setFormExtraInput] = useState('')
   const [editingVendor, setEditingVendor] = useState(false)
@@ -30,7 +30,16 @@ export default function VendorOptionsManager() {
       supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).order('sort_order').order('created_at'),
     ])
     setVendor(v)
-    setVendorForm({ name: v?.name || '', description: v?.description || '', emoji: v?.emoji || '🛒', pdf_url: v?.pdf_url || '', sort_order: String(v?.sort_order ?? 0), username: v?.username || '', password: v?.password || '' })
+    setVendorForm({
+      name: v?.name || '',
+      description: v?.description || '',
+      emoji: v?.emoji || '🛒',
+      pdf_url: v?.pdf_url || '',
+      sort_order: String(v?.sort_order ?? 0),
+      username: v?.username || '',
+      password: v?.password || '',
+      tax_rate: String(v?.tax_rate ?? 0),
+    })
     setOptions(o || [])
     setLoading(false)
   }
@@ -46,6 +55,7 @@ export default function VendorOptionsManager() {
       sort_order: parseInt(vendorForm.sort_order) || 0,
       username: vendorForm.username.trim().toLowerCase() || null,
       password: vendorForm.password.trim() || null,
+      tax_rate: parseFloat(vendorForm.tax_rate) || 0,
     }).eq('id', vendorId)
     setSavingVendor(false)
     if (error) { setSaveError(error.message); return }
@@ -62,11 +72,12 @@ export default function VendorOptionsManager() {
       description: form.description.trim() || null,
       category: form.category.trim() || null,
       sort_order: parseInt(form.sort_order) || 0,
+      price: parseFloat(form.price) || null,
       extras: formExtras.length > 0 ? formExtras : null,
       active: true,
     })
     setSaving(false)
-    setForm({ name: '', description: '', category: '', sort_order: '0' })
+    setForm({ name: '', description: '', category: '', sort_order: '0', price: '' })
     setFormExtras([])
     setFormExtraInput('')
     setShowForm(false)
@@ -125,7 +136,7 @@ export default function VendorOptionsManager() {
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate('/admin/vendors')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button onClick={() => navigate('/admin/vendors')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>&#8249;</button>
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Vendor options</p>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{vendor?.emoji} {vendor?.name}</h1>
@@ -146,6 +157,7 @@ export default function VendorOptionsManager() {
               { key: 'emoji', label: 'Emoji', placeholder: '🛒' },
               { key: 'pdf_url', label: 'Menu PDF URL', placeholder: 'https://...' },
               { key: 'sort_order', label: 'Sort order', placeholder: '0', type: 'number' },
+              { key: 'tax_rate', label: 'Tax rate (%)', placeholder: 'e.g. 5 for 5% VAT', type: 'number' },
               { key: 'username', label: 'Dashboard login username', placeholder: 'e.g. starbucks' },
               { key: 'password', label: 'Dashboard login password', placeholder: 'Set a password for this vendor' },
             ].map(f => (
@@ -176,6 +188,7 @@ export default function VendorOptionsManager() {
               { key: 'name', label: 'Name *', placeholder: 'e.g. Latte' },
               { key: 'description', label: 'Description', placeholder: 'e.g. Espresso with steamed milk' },
               { key: 'category', label: 'Category', placeholder: 'e.g. Hot drinks' },
+              { key: 'price', label: 'Price (AED)', placeholder: 'e.g. 15.00', type: 'number' },
               { key: 'sort_order', label: 'Sort order', placeholder: '0', type: 'number' },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 10 }}>
@@ -190,7 +203,7 @@ export default function VendorOptionsManager() {
               {formExtras.map(e => (
                 <span key={e} onClick={() => setFormExtras(f => f.filter(x => x !== e))}
                   style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', cursor: 'pointer', border: '1px solid #A8DECE' }}>
-                  {e} ×
+                  {e} &#215;
                 </span>
               ))}
             </div>
@@ -226,6 +239,11 @@ export default function VendorOptionsManager() {
                       <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: opt.active ? '#111' : '#aaa' }}>{opt.name}</p>
                       {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#aaa' }}>{opt.description}</p>}
                     </div>
+                    {opt.price > 0 && (
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>
+                        AED {Number(opt.price).toFixed(2)}
+                      </p>
+                    )}
                   </div>
 
                   <div style={{ padding: '0 14px 12px' }}>
@@ -234,7 +252,7 @@ export default function VendorOptionsManager() {
                         {(opt.extras || []).map(e => (
                           <span key={e} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #A8DECE' }}>
                             {e}
-                            <span onClick={() => removeExtraFromOption(opt, e)} style={{ cursor: 'pointer', color: '#0F6E56', fontWeight: 700, lineHeight: 1 }}>×</span>
+                            <span onClick={() => removeExtraFromOption(opt, e)} style={{ cursor: 'pointer', color: '#0F6E56', fontWeight: 700, lineHeight: 1 }}>&#215;</span>
                           </span>
                         ))}
                       </div>
@@ -251,7 +269,7 @@ export default function VendorOptionsManager() {
                         </button>
                         <button onClick={() => { setAddingExtraFor(null); setExtraInput('') }}
                           style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
-                          ×
+                          &#215;
                         </button>
                       </div>
                     ) : (
