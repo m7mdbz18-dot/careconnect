@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+﻿import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import WelcomePage from './pages/WelcomePage'
 import PatientPage from './pages/PatientPage'
 import VisitorPage from './pages/VisitorPage'
@@ -17,6 +17,7 @@ import VendorOptionsManager from './pages/VendorOptionsManager'
 import VendorDashboard from './pages/VendorDashboard'
 import OrderTrackingPage from './pages/OrderTrackingPage'
 import WaitingRoomPage from './pages/WaitingRoomPage'
+import WifiManager from './pages/WifiManager'
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
         <Route path="/admin/qr" element={<Protected allow="admin"><QRGenerator /></Protected>} />
         <Route path="/admin/vendors" element={<Protected allow="admin"><VendorManager /></Protected>} />
         <Route path="/admin/vendors/:vendorId" element={<Protected allow="admin"><VendorOptionsManager /></Protected>} />
+        <Route path="/admin/wifi" element={<Protected allow="admin"><WifiManager /></Protected>} />
       </Routes>
     </BrowserRouter>
   )

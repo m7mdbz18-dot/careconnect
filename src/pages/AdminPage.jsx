@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { logout } from '../auth'
@@ -31,7 +31,8 @@ export default function AdminPage() {
 
   const sections = [
     { title: 'Manage Vendors', desc: 'Add vendors & their ordering options', icon: '🛒', path: '/admin/vendors', bg: '#FAEEDA' },
-    { title: 'QR Code Generator', desc: 'Create & print bed & waiting room QRs', icon: '🔳', path: '/admin/qr', bg: '#E1F5EE' },
+    { title: 'QR Code Generator', desc: 'Create & print bed & waiting room QRs', icon: '\u{1F533}', path: '/admin/qr', bg: '#E1F5EE' },
+    { title: 'WiFi QR Codes', desc: 'Manage guest WiFi networks & print QRs', icon: '📶', path: '/admin/wifi', bg: '#EEF2FF' },
   ]
 
   const statCards = [
@@ -69,7 +70,7 @@ export default function AdminPage() {
                 <p style={{ margin: 0, fontWeight: 600, fontSize: 15, color: '#111' }}>{s.title}</p>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{s.desc}</p>
               </div>
-              <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+              <span style={{ color: '#ccc', fontSize: 18 }}>&rsaquo;</span>
             </div>
           ))}
         </div>
@@ -77,13 +78,13 @@ export default function AdminPage() {
         <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Vendor dashboards</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
           {vendors.length === 0 ? (
-            <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No vendors yet — add them in Manage Vendors</p>
+            <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No vendors yet &mdash; add them in Manage Vendors</p>
           ) : vendors.map(v => (
             <div key={v.id} onClick={() => navigate(`/staff/vendor?id=${v.id}`)}
               style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: '0.5px solid #eee', opacity: v.active ? 1 : 0.5 }}>
               <span style={{ fontSize: 22 }}>{v.emoji}</span>
               <p style={{ margin: 0, flex: 1, fontWeight: 500, fontSize: 14, color: '#111' }}>{v.name}</p>
-              <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+              <span style={{ color: '#ccc', fontSize: 18 }}>&rsaquo;</span>
             </div>
           ))}
         </div>
@@ -97,7 +98,7 @@ export default function AdminPage() {
             <div key={s.title} onClick={() => navigate(s.path)} style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: '0.5px solid #eee' }}>
               <span style={{ fontSize: 20 }}>{s.icon}</span>
               <p style={{ margin: 0, flex: 1, fontWeight: 500, fontSize: 14, color: '#111' }}>{s.title}</p>
-              <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+              <span style={{ color: '#ccc', fontSize: 18 }}>&rsaquo;</span>
             </div>
           ))}
         </div>
