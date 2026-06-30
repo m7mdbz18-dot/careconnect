@@ -22,7 +22,7 @@ export default function VendorPage() {
   const [options, setOptions] = useState([])
   const [tab, setTab] = useState('order')
   const [selected, setSelected] = useState([])
-  const [step, setStep] = useState('select') // 'select' | 'checkout' | 'success'
+  const [step, setStep] = useState('select')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [trackingCode, setTrackingCode] = useState('')
@@ -32,8 +32,8 @@ export default function VendorPage() {
 
   const isWaiting = !!area
   const displayArea = area ? decodeURIComponent(area) : null
-  const userType = sessionStorage.getItem(`userType-${room}-${bed}`) || 'patient'
-  const homePath = isWaiting ? `/w/${area}` : `/q/${ward}/${room}/${bed}/${userType}`
+  const userType = sessionStorage.getItem('userType-' + room + '-' + bed) || 'patient'
+  const homePath = isWaiting ? '/w/' + area : '/q/' + ward + '/' + room + '/' + bed + '/' + userType
   const canPlace = !submitting && !(isWaiting && (!name.trim() || !phone.trim()))
 
   useEffect(() => {
@@ -51,8 +51,16 @@ export default function VendorPage() {
     setSelected(s =>
       s.find(x => x.id === opt.id)
         ? s.filter(x => x.id !== opt.id)
-        : [...s, { id: opt.id, name: opt.name }]
+        : [...s, { id: opt.id, name: opt.name, extras: [] }]
     )
+  }
+
+  function toggleExtra(optId, extra) {
+    setSelected(s => s.map(x =>
+      x.id === optId
+        ? { ...x, extras: x.extras.includes(extra) ? x.extras.filter(e => e !== extra) : [...x.extras, extra] }
+        : x
+    ))
   }
 
   async function placeOrder() {
@@ -97,32 +105,33 @@ export default function VendorPage() {
   if (step === 'success') {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ fontSize: 70, marginBottom: 12 }}>🎉</div>
+        <div style={{ fontSize: 70, marginBottom: 12 }}>&#127881;</div>
         <h2 style={{ color: '#0F6E56', margin: 0, fontSize: 24, fontWeight: 700 }}>Order placed!</h2>
         <p style={{ color: '#888', textAlign: 'center', marginTop: 8, fontSize: 14 }}>
           {vendor.name} has received your order.<br />Pay in person when it arrives.
         </p>
-
         <div style={{ background: '#fff', borderRadius: 14, border: '0.5px solid #eee', padding: '20px 24px', marginTop: 24, width: '100%', maxWidth: 360, textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 11, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Your handover code</p>
           <p style={{ margin: '8px 0 4px', fontSize: 52, fontWeight: 800, letterSpacing: 10, color: '#0F6E56' }}>{trackingCode}</p>
           <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>Show this to the delivery person</p>
         </div>
-
         <div style={{ background: '#fff', borderRadius: 14, border: '0.5px solid #eee', padding: '14px 18px', marginTop: 12, width: '100%', maxWidth: 360 }}>
           <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
           {selected.map(item => (
-            <p key={item.id} style={{ margin: '4px 0', fontSize: 13, color: '#111' }}>· {item.name}</p>
+            <div key={item.id} style={{ margin: '4px 0' }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#111' }}>· {item.name}</p>
+              {item.extras && item.extras.length > 0 && (
+                <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+              )}
+            </div>
           ))}
           {name && <p style={{ margin: '10px 0 0', fontSize: 12, color: '#aaa' }}>Name: {name}</p>}
           {phone && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#aaa' }}>Phone: {phone}</p>}
         </div>
-
         <div style={{ background: '#E1F5EE', borderRadius: 12, padding: '12px 16px', marginTop: 12, width: '100%', maxWidth: 360 }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>💳 Pay in person on delivery — cash or card</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery — cash or card</p>
         </div>
-
-        <button onClick={() => navigate(`/order/${orderId}`)}
+        <button onClick={() => navigate('/order/' + orderId)}
           style={{ marginTop: 24, width: '100%', maxWidth: 360, padding: '14px', borderRadius: 10, background: '#0F6E56', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
           Track your order →
         </button>
@@ -136,11 +145,9 @@ export default function VendorPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', paddingBottom: tab === 'order' && step === 'select' && selected.length > 0 ? 80 : 0 }}>
-      {/* Header */}
       <div style={{ background: '#0F6E56', padding: '20px 16px 0', color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <button
-            onClick={() => step === 'checkout' ? setStep('select') : navigate(-1)}
+          <button onClick={() => step === 'checkout' ? setStep('select') : navigate(-1)}
             style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0, flexShrink: 0 }}>
             ‹
           </button>
@@ -148,7 +155,7 @@ export default function VendorPage() {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{vendor.name}</h1>
             <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
-              {vendor.description || (isWaiting ? displayArea : `Room ${room} · Bed ${bed.toUpperCase()}`)}
+              {vendor.description || (isWaiting ? displayArea : 'Room ' + room + ' · Bed ' + bed.toUpperCase())}
             </p>
           </div>
         </div>
@@ -162,12 +169,11 @@ export default function VendorPage() {
         </div>
       </div>
 
-      {/* Order tab — item selection */}
       {tab === 'order' && step === 'select' && (
-        <div style={{ padding: '16px 0 16px' }}>
+        <div style={{ padding: '16px 0' }}>
           {Object.keys(grouped).length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-              <p style={{ fontSize: 36 }}>🛒</p>
+              <p style={{ fontSize: 36 }}>&#128shopping_cart;</p>
               <p style={{ fontSize: 14 }}>No items available yet</p>
             </div>
           ) : Object.entries(grouped).map(([cat, items]) => (
@@ -175,15 +181,33 @@ export default function VendorPage() {
               <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>{cat}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {items.map(opt => {
-                  const isSelected = selected.some(x => x.id === opt.id)
+                  const selectedItem = selected.find(x => x.id === opt.id)
+                  const isSelected = !!selectedItem
+                  const extras = opt.extras || []
                   return (
-                    <div key={opt.id} onClick={() => toggleOption(opt)}
-                      style={{ borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', border: isSelected ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: isSelected ? '#E1F5EE' : '#fff' }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', border: isSelected ? '6px solid #0F6E56' : '1.5px solid #ccc', flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: isSelected ? '#085041' : '#111' }}>{opt.name}</p>
-                        {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{opt.description}</p>}
+                    <div key={opt.id} style={{ borderRadius: 12, border: isSelected ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: isSelected ? '#E1F5EE' : '#fff', overflow: 'hidden' }}>
+                      <div onClick={() => toggleOption(opt)}
+                        style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: isSelected ? '6px solid #0F6E56' : '1.5px solid #ccc', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: isSelected ? '#085041' : '#111' }}>{opt.name}</p>
+                          {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{opt.description}</p>}
+                        </div>
                       </div>
+                      {isSelected && extras.length > 0 && (
+                        <div style={{ padding: '0 14px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {extras.map(extra => {
+                            const active = selectedItem.extras.includes(extra)
+                            return (
+                              <div key={extra}
+                                onClick={e => { e.stopPropagation(); toggleExtra(opt.id, extra) }}
+                                style={{ padding: '5px 13px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: active ? '#0F6E56' : '#fff', color: active ? '#fff' : '#555', border: active ? '1.5px solid #0F6E56' : '1px solid #ddd' }}>
+                                {extra}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -193,13 +217,17 @@ export default function VendorPage() {
         </div>
       )}
 
-      {/* Order tab — checkout */}
       {tab === 'order' && step === 'checkout' && (
         <div style={{ padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 14 }}>
             <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
             {selected.map(item => (
-              <p key={item.id} style={{ margin: '4px 0', fontSize: 14, color: '#111' }}>· {item.name}</p>
+              <div key={item.id} style={{ margin: '4px 0' }}>
+                <p style={{ margin: 0, fontSize: 14, color: '#111' }}>· {item.name}</p>
+                {item.extras && item.extras.length > 0 && (
+                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                )}
+              </div>
             ))}
           </div>
 
@@ -207,63 +235,47 @@ export default function VendorPage() {
             <p style={{ margin: '0 0 12px', fontSize: 12, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
               {isWaiting ? 'Your details — required for delivery' : 'Optional — helps delivery find you'}
             </p>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
+            <input value={name} onChange={e => setName(e.target.value)}
               placeholder={isWaiting ? 'Your name *' : 'Your name (optional)'}
-              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !name.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box', outline: 'none' }}
-            />
-            <input
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder={isWaiting ? 'Phone number *' : 'Phone number (optional)'}
-              type="tel"
-              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !phone.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
-            />
+              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !name.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box', outline: 'none' }} />
+            <input value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder={isWaiting ? 'Phone number *' : 'Phone number (optional)'} type="tel"
+              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !phone.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }} />
             {isWaiting && (!name.trim() || !phone.trim()) && (
               <p style={{ margin: '8px 0 0', fontSize: 12, color: '#e05' }}>Name and phone are required for waiting room orders</p>
             )}
           </div>
 
           <div style={{ background: '#E1F5EE', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
-            <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>💳 Pay in person on delivery — cash or card</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#085041' }}>&#128179; Pay in person on delivery — cash or card</p>
           </div>
 
-          <button
-            onClick={placeOrder}
-            disabled={!canPlace}
+          <button onClick={placeOrder} disabled={!canPlace}
             style={{ width: '100%', padding: '15px', borderRadius: 10, border: 'none', background: canPlace ? '#0F6E56' : '#ddd', color: canPlace ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: canPlace ? 'pointer' : 'not-allowed' }}>
             {submitting ? 'Placing order...' : 'Place order'}
           </button>
         </div>
       )}
 
-      {/* View Menu tab */}
       {tab === 'menu' && (
         <div style={{ padding: 16 }}>
           {vendor.pdf_url ? (
             <>
               <p style={{ margin: '0 0 12px', fontSize: 13, color: '#888' }}>Pinch to zoom · Swipe to browse</p>
-              <iframe
-                src={vendor.pdf_url}
-                style={{ width: '100%', height: '75vh', border: 'none', borderRadius: 12 }}
-                title={`${vendor.name} menu`}
-              />
+              <iframe src={vendor.pdf_url} style={{ width: '100%', height: '75vh', border: 'none', borderRadius: 12 }} title={vendor.name + ' menu'} />
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-              <p style={{ fontSize: 40 }}>📄</p>
+              <p style={{ fontSize: 40 }}>&#128196;</p>
               <p style={{ fontSize: 14 }}>No menu PDF uploaded yet</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Sticky continue bar */}
       {tab === 'order' && step === 'select' && selected.length > 0 && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '12px 16px', background: '#fff', borderTop: '0.5px solid #eee' }}>
-          <button
-            onClick={() => setStep('checkout')}
+          <button onClick={() => setStep('checkout')}
             style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
             Continue · {selected.length} item{selected.length !== 1 ? 's' : ''} selected
           </button>

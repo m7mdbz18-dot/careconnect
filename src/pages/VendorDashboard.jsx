@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { logout, getRole, getVendorId } from '../auth'
@@ -246,3 +246,4 @@ export default function VendorDashboard() {
     </div>
   )
 }
+
