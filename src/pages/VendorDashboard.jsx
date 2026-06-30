@@ -11,6 +11,9 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
+function extraName(e) { return typeof e === 'string' ? e : (e?.name || '') }
+function extraPrice(e) { return typeof e === 'object' && e !== null ? (e.price || 0) : 0 }
+
 const STATUS_LABEL = {
   pending:   { label: 'Pending',    bg: '#FEF3C7', color: '#92400E' },
   accepted:  { label: 'Accepted',   bg: '#DBEAFE', color: '#1E40AF' },
@@ -46,7 +49,6 @@ export default function VendorDashboard() {
     !('Notification' in window) ? 'unsupported' : Notification.permission
   )
 
-  // Menu tab state
   const [menuOptions, setMenuOptions] = useState([])
   const [menuLoading, setMenuLoading] = useState(false)
   const [menuLoaded, setMenuLoaded] = useState(false)
@@ -54,9 +56,11 @@ export default function VendorDashboard() {
   const [addForm, setAddForm] = useState({ name: '', description: '', category: '', sort_order: '0', price: '' })
   const [formExtras, setFormExtras] = useState([])
   const [formExtraInput, setFormExtraInput] = useState('')
+  const [formExtraPriceInput, setFormExtraPriceInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [addingExtraFor, setAddingExtraFor] = useState(null)
   const [extraInput, setExtraInput] = useState('')
+  const [extraPriceInput, setExtraPriceInput] = useState('')
 
   async function setupPush(vid) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
@@ -87,8 +91,7 @@ export default function VendorDashboard() {
 
   useEffect(() => {
     if (!vendorId) { navigate('/login'); return }
-    loadVendor()
-    loadOrders()
+    loadVendor(); loadOrders()
     const channel = supabase
       .channel('vendor-orders-' + vendorId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'vendor_id=eq.' + vendorId }, () => loadOrders())
@@ -108,16 +111,13 @@ export default function VendorDashboard() {
 
   async function loadOrders() {
     const { data } = await supabase.from('orders').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: false })
-    setOrders(data || [])
-    setLoading(false)
+    setOrders(data || []); setLoading(false)
   }
 
   async function loadMenu() {
     setMenuLoading(true)
     const { data } = await supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).order('sort_order').order('created_at')
-    setMenuOptions(data || [])
-    setMenuLoading(false)
-    setMenuLoaded(true)
+    setMenuOptions(data || []); setMenuLoading(false); setMenuLoaded(true)
   }
 
   async function advance(orderId, nextStatus) {
@@ -141,42 +141,39 @@ export default function VendorDashboard() {
     })
     setSaving(false)
     setAddForm({ name: '', description: '', category: '', sort_order: '0', price: '' })
-    setFormExtras([])
-    setFormExtraInput('')
-    setShowAddForm(false)
-    loadMenu()
+    setFormExtras([]); setFormExtraInput(''); setFormExtraPriceInput('')
+    setShowAddForm(false); loadMenu()
   }
 
   function addFormExtra() {
     const val = formExtraInput.trim()
-    if (!val || formExtras.includes(val)) return
-    setFormExtras(f => [...f, val])
-    setFormExtraInput('')
+    if (!val || formExtras.some(e => extraName(e) === val)) return
+    const price = parseFloat(formExtraPriceInput) || 0
+    setFormExtras(f => [...f, price > 0 ? { name: val, price } : val])
+    setFormExtraInput(''); setFormExtraPriceInput('')
   }
 
   async function toggleMenuItem(opt) {
-    await supabase.from('vendor_options').update({ active: !opt.active }).eq('id', opt.id)
-    loadMenu()
+    await supabase.from('vendor_options').update({ active: !opt.active }).eq('id', opt.id); loadMenu()
   }
 
   async function deleteMenuItem(id) {
     if (!confirm('Delete this item?')) return
-    await supabase.from('vendor_options').delete().eq('id', id)
-    loadMenu()
+    await supabase.from('vendor_options').delete().eq('id', id); loadMenu()
   }
 
   async function addExtraToItem(opt) {
     const val = extraInput.trim()
     if (!val) return
-    const newExtras = [...(opt.extras || []), val]
+    const price = parseFloat(extraPriceInput) || 0
+    const newExtra = price > 0 ? { name: val, price } : val
+    const newExtras = [...(opt.extras || []), newExtra]
     await supabase.from('vendor_options').update({ extras: newExtras }).eq('id', opt.id)
-    setExtraInput('')
-    setAddingExtraFor(null)
-    loadMenu()
+    setExtraInput(''); setExtraPriceInput(''); setAddingExtraFor(null); loadMenu()
   }
 
   async function removeExtraFromItem(opt, extra) {
-    const newExtras = (opt.extras || []).filter(e => e !== extra)
+    const newExtras = (opt.extras || []).filter(e => extraName(e) !== extraName(extra))
     await supabase.from('vendor_options').update({ extras: newExtras.length > 0 ? newExtras : null }).eq('id', opt.id)
     loadMenu()
   }
@@ -278,7 +275,9 @@ export default function VendorDashboard() {
                           <div style={{ flex: 1 }}>
                             <p style={{ margin: 0, fontSize: 13, color: '#111' }}>&#183; {item.name}</p>
                             {item.extras && item.extras.length > 0 && (
-                              <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                              <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>
+                                {item.extras.map(e => extraName(e) + (extraPrice(e) > 0 ? ' +AED ' + Number(extraPrice(e)).toFixed(2) : '')).join(' · ')}
+                              </p>
                             )}
                           </div>
                           {item.price > 0 && (
@@ -334,7 +333,7 @@ export default function VendorDashboard() {
 
       {tab === 'menu' && (
         <div style={{ padding: 16 }}>
-          <button onClick={() => { setShowAddForm(v => !v); setFormExtras([]); setFormExtraInput('') }}
+          <button onClick={() => { setShowAddForm(v => !v); setFormExtras([]); setFormExtraInput(''); setFormExtraPriceInput('') }}
             style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}>
             {showAddForm ? 'Cancel' : '+ Add menu item'}
           </button>
@@ -360,23 +359,28 @@ export default function VendorDashboard() {
               {formExtras.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                   {formExtras.map(e => (
-                    <span key={e} onClick={() => setFormExtras(f => f.filter(x => x !== e))}
+                    <span key={extraName(e)} onClick={() => setFormExtras(f => f.filter(x => extraName(x) !== extraName(e)))}
                       style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', cursor: 'pointer', border: '1px solid #A8DECE' }}>
-                      {e} &#215;
+                      {extraName(e)}{extraPrice(e) > 0 ? ' +AED ' + Number(extraPrice(e)).toFixed(2) : ''} &#215;
                     </span>
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
                 <input value={formExtraInput} onChange={e => setFormExtraInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addFormExtra()}
-                  placeholder="e.g. Extra sugar"
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  placeholder="Option name"
+                  style={{ flex: 2, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                <input value={formExtraPriceInput} onChange={e => setFormExtraPriceInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addFormExtra()}
+                  placeholder="+AED" type="number" min="0" step="0.5"
+                  style={{ flex: 1, minWidth: 80, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
                 <button onClick={addFormExtra}
                   style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: formExtraInput.trim() ? '#0F6E56' : '#eee', color: formExtraInput.trim() ? '#fff' : '#aaa', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   + Add
                 </button>
               </div>
+              <p style={{ margin: '0 0 12px', fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
 
               <button onClick={addMenuItem} disabled={saving || !addForm.name.trim()}
                 style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: addForm.name.trim() ? '#0F6E56' : '#ddd', color: addForm.name.trim() ? '#fff' : '#aaa', fontWeight: 600, fontSize: 14, cursor: addForm.name.trim() ? 'pointer' : 'not-allowed' }}>
@@ -412,30 +416,37 @@ export default function VendorDashboard() {
                       {(opt.extras || []).length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                           {(opt.extras || []).map(e => (
-                            <span key={e} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #A8DECE' }}>
-                              {e}
+                            <span key={extraName(e)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: '#E1F5EE', color: '#085041', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #A8DECE' }}>
+                              {extraName(e)}{extraPrice(e) > 0 ? ' +AED ' + Number(extraPrice(e)).toFixed(2) : ''}
                               <span onClick={() => removeExtraFromItem(opt, e)} style={{ cursor: 'pointer', color: '#0F6E56', fontWeight: 700, lineHeight: 1 }}>&#215;</span>
                             </span>
                           ))}
                         </div>
                       )}
                       {addingExtraFor === opt.id ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <input autoFocus value={extraInput} onChange={e => setExtraInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
-                            placeholder="e.g. No lettuce"
-                            style={{ flex: 1, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                          <button onClick={() => addExtraToItem(opt)}
-                            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                            Add
-                          </button>
-                          <button onClick={() => { setAddingExtraFor(null); setExtraInput('') }}
-                            style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
-                            &#215;
-                          </button>
+                        <div>
+                          <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                            <input autoFocus value={extraInput} onChange={e => setExtraInput(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
+                              placeholder="e.g. Extra coffee"
+                              style={{ flex: 2, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                            <input value={extraPriceInput} onChange={e => setExtraPriceInput(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
+                              placeholder="+AED" type="number" min="0" step="0.5"
+                              style={{ flex: 1, minWidth: 70, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                            <button onClick={() => addExtraToItem(opt)}
+                              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                              Add
+                            </button>
+                            <button onClick={() => { setAddingExtraFor(null); setExtraInput(''); setExtraPriceInput('') }}
+                              style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
+                              &#215;
+                            </button>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
                         </div>
                       ) : (
-                        <button onClick={() => { setAddingExtraFor(opt.id); setExtraInput('') }}
+                        <button onClick={() => { setAddingExtraFor(opt.id); setExtraInput(''); setExtraPriceInput('') }}
                           style={{ background: 'none', border: '1px dashed #ccc', borderRadius: 20, padding: '4px 12px', fontSize: 12, color: '#888', cursor: 'pointer' }}>
                           + add customization
                         </button>

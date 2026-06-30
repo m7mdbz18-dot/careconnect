@@ -2,6 +2,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
+function extraName(e) { return typeof e === 'string' ? e : (e?.name || '') }
+function extraPrice(e) { return typeof e === 'object' && e !== null ? (e.price || 0) : 0 }
+
 const STEPS = [
   { key: 'pending',   label: 'Order received',     desc: 'Waiting for the vendor to confirm' },
   { key: 'accepted',  label: 'Confirmed',           desc: 'Your order is being prepared' },
@@ -9,9 +12,7 @@ const STEPS = [
   { key: 'delivered', label: 'Delivered',           desc: 'Enjoy! Pay in person — cash or card' },
 ]
 
-function stepIndex(status) {
-  return STEPS.findIndex(s => s.key === status)
-}
+function stepIndex(status) { return STEPS.findIndex(s => s.key === status) }
 
 export default function OrderTrackingPage() {
   const { orderId } = useParams()
@@ -23,32 +24,22 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     loadOrder()
-
     const channel = supabase
       .channel('order-' + orderId)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'id=eq.' + orderId }, payload => {
         setOrder(prev => ({ ...prev, ...payload.new }))
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [orderId])
 
   async function loadOrder() {
     const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).single()
     if (!o) { setLoading(false); return }
-
     const deviceToken = localStorage.getItem('cc_device_token')
-    if (o.device_token !== deviceToken) {
-      setWrongDevice(true)
-      setLoading(false)
-      return
-    }
-
+    if (o.device_token !== deviceToken) { setWrongDevice(true); setLoading(false); return }
     const { data: v } = await supabase.from('vendors').select('*').eq('id', o.vendor_id).single()
-    setOrder(o)
-    setVendor(v)
-    setLoading(false)
+    setOrder(o); setVendor(v); setLoading(false)
   }
 
   if (loading) {
@@ -84,7 +75,6 @@ export default function OrderTrackingPage() {
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{vendor?.emoji} {vendor?.name}</h1>
           </div>
         </div>
-
         <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 14px' }}>
           <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{current.label}</p>
           <p style={{ margin: '2px 0 0', fontSize: 13, opacity: 0.85 }}>{current.desc}</p>
@@ -127,7 +117,9 @@ export default function OrderTrackingPage() {
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, fontSize: 14, color: '#111' }}>&#183; {item.name}</p>
                 {item.extras && item.extras.length > 0 && (
-                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
+                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>
+                    {item.extras.map(e => extraName(e) + (extraPrice(e) > 0 ? ' +AED ' + Number(extraPrice(e)).toFixed(2) : '')).join(' · ')}
+                  </p>
                 )}
               </div>
               {item.price > 0 && (

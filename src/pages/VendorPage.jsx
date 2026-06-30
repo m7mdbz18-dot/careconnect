@@ -4,19 +4,17 @@ import { supabase } from '../supabase'
 
 function getDeviceToken() {
   let token = localStorage.getItem('cc_device_token')
-  if (!token) {
-    token = crypto.randomUUID()
-    localStorage.setItem('cc_device_token', token)
-  }
+  if (!token) { token = crypto.randomUUID(); localStorage.setItem('cc_device_token', token) }
   return token
 }
 
-function generateTrackingCode() {
-  return String(Math.floor(1000 + Math.random() * 9000))
-}
-
-function fmtPrice(n) {
-  return 'AED ' + Number(n || 0).toFixed(2)
+function generateTrackingCode() { return String(Math.floor(1000 + Math.random() * 9000)) }
+function fmtPrice(n) { return 'AED ' + Number(n || 0).toFixed(2) }
+function extraName(e) { return typeof e === 'string' ? e : (e?.name || '') }
+function extraPrice(e) { return typeof e === 'object' && e !== null ? (e.price || 0) : 0 }
+function itemTotal(item) {
+  const ep = (item.extras || []).reduce((s, e) => s + extraPrice(e), 0)
+  return (item.price || 0) + ep
 }
 
 export default function VendorPage() {
@@ -41,19 +39,17 @@ export default function VendorPage() {
   const canPlace = !submitting && !(isWaiting && (!name.trim() || !phone.trim()))
 
   const taxRate = vendor?.tax_rate || 0
-  const subtotal = selected.reduce((sum, item) => sum + (item.price || 0), 0)
+  const subtotal = selected.reduce((sum, item) => sum + itemTotal(item), 0)
   const taxAmt = subtotal * (taxRate / 100)
   const total = subtotal + taxAmt
-  const hasPrices = selected.some(item => item.price > 0)
+  const hasPrices = selected.some(item => item.price > 0 || (item.extras || []).some(e => extraPrice(e) > 0))
 
   useEffect(() => {
     Promise.all([
       supabase.from('vendors').select('*').eq('id', vendorId).single(),
       supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).eq('active', true).order('sort_order').order('created_at'),
     ]).then(([{ data: v }, { data: o }]) => {
-      setVendor(v)
-      setOptions(o || [])
-      setLoading(false)
+      setVendor(v); setOptions(o || []); setLoading(false)
     })
   }, [vendorId])
 
@@ -68,7 +64,12 @@ export default function VendorPage() {
   function toggleExtra(optId, extra) {
     setSelected(s => s.map(x =>
       x.id === optId
-        ? { ...x, extras: x.extras.includes(extra) ? x.extras.filter(e => e !== extra) : [...x.extras, extra] }
+        ? {
+            ...x,
+            extras: x.extras.some(e => extraName(e) === extraName(extra))
+              ? x.extras.filter(e => extraName(e) !== extraName(extra))
+              : [...x.extras, extra]
+          }
         : x
     ))
   }
@@ -95,9 +96,7 @@ export default function VendorPage() {
     }).select('id').single()
     setSubmitting(false)
     if (error) { alert('Something went wrong. Please try again.'); return }
-    setOrderId(data.id)
-    setTrackingCode(code)
-    setStep('success')
+    setOrderId(data.id); setTrackingCode(code); setStep('success')
   }
 
   const grouped = options.reduce((acc, opt) => {
@@ -106,6 +105,12 @@ export default function VendorPage() {
     acc[cat].push(opt)
     return acc
   }, {})
+
+  function renderExtrasLine(extras) {
+    if (!extras || extras.length === 0) return null
+    const parts = extras.map(e => extraName(e) + (extraPrice(e) > 0 ? ' +' + fmtPrice(extraPrice(e)) : ''))
+    return <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{parts.join(' · ')}</p>
+  }
 
   if (loading) {
     return (
@@ -134,11 +139,9 @@ export default function VendorPage() {
             <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, fontSize: 13, color: '#111' }}>&#183; {item.name}</p>
-                {item.extras && item.extras.length > 0 && (
-                  <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
-                )}
+                {renderExtrasLine(item.extras)}
               </div>
-              {item.price > 0 && <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(item.price)}</p>}
+              {itemTotal(item) > 0 && <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(itemTotal(item))}</p>}
             </div>
           ))}
           {hasPrices && (
@@ -236,12 +239,13 @@ export default function VendorPage() {
                       {isSelected && extras.length > 0 && (
                         <div style={{ padding: '0 14px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                           {extras.map(extra => {
-                            const active = selectedItem.extras.includes(extra)
+                            const active = selectedItem.extras.some(e => extraName(e) === extraName(extra))
+                            const ep = extraPrice(extra)
                             return (
-                              <div key={extra}
+                              <div key={extraName(extra)}
                                 onClick={e => { e.stopPropagation(); toggleExtra(opt.id, extra) }}
                                 style={{ padding: '5px 13px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: active ? '#0F6E56' : '#fff', color: active ? '#fff' : '#555', border: active ? '1.5px solid #0F6E56' : '1px solid #ddd' }}>
-                                {extra}
+                                {extraName(extra)}{ep > 0 ? ' +' + fmtPrice(ep) : ''}
                               </div>
                             )
                           })}
@@ -264,11 +268,9 @@ export default function VendorPage() {
               <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 14, color: '#111' }}>&#183; {item.name}</p>
-                  {item.extras && item.extras.length > 0 && (
-                    <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{item.extras.join(' · ')}</p>
-                  )}
+                  {renderExtrasLine(item.extras)}
                 </div>
-                {item.price > 0 && <p style={{ margin: 0, fontSize: 14, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(item.price)}</p>}
+                {itemTotal(item) > 0 && <p style={{ margin: 0, fontSize: 14, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(itemTotal(item))}</p>}
               </div>
             ))}
             {hasPrices && (
