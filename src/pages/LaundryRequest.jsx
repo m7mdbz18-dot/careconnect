@@ -1,13 +1,15 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import { useQRToken } from '../hooks/useQRToken'
+import ScanRequired from './ScanRequired'
 
 const timeSlots = ['Morning (8–11 AM)', 'Afternoon (1–4 PM)', 'Evening (6–9 PM)']
 const services = ['Washing', 'Ironing', 'Dry cleaning', 'Fold & pack']
 
 export default function LaundryRequest() {
-  const { ward, room, bed } = useParams()
   const navigate = useNavigate()
+  const { token, loading, invalid, ward, room, bed } = useQRToken()
   const [slot, setSlot] = useState(null)
   const [selectedServices, setSelectedServices] = useState([])
   const [express, setExpress] = useState(false)
@@ -15,9 +17,12 @@ export default function LaundryRequest() {
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  if (loading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
+  if (invalid) return <ScanRequired />
+
   function goHome() {
     const who = sessionStorage.getItem(`userType-${room}-${bed}`)
-    navigate(`/q/${ward}/${room}/${bed}/${who === 'visitor' ? 'visitor' : 'patient'}`)
+    navigate(`/q/${token}/${who === 'visitor' ? 'visitor' : 'patient'}`)
   }
 
   function toggleService(s) {
@@ -27,19 +32,11 @@ export default function LaundryRequest() {
   async function submit() {
     if (!slot || selectedServices.length === 0) return
     setSaving(true)
-    const detailParts = [
-      slot,
-      'Services: ' + selectedServices.join(', '),
-    ]
+    const detailParts = [slot, 'Services: ' + selectedServices.join(', ')]
     if (express) detailParts.push('⚡ EXPRESS / URGENT')
     const { error } = await supabase.from('service_requests').insert({
-      type: 'laundry',
-      ward: ward.toUpperCase(),
-      room,
-      bed: bed.toUpperCase(),
-      details: detailParts.join(' · '),
-      note,
-      status: 'new',
+      type: 'laundry', ward: ward.toUpperCase(), room, bed: bed.toUpperCase(),
+      details: detailParts.join(' · '), note, status: 'new',
     })
     setSaving(false)
     if (error) { alert('Could not submit request. Please try again.'); return }
@@ -111,11 +108,7 @@ export default function LaundryRequest() {
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '12px 16px', background: '#fff', borderTop: '0.5px solid #eee' }}>
-        {(!slot || selectedServices.length === 0) && (
-          <p style={{ textAlign: 'center', fontSize: 12, color: '#aaa', margin: '0 0 8px' }}>
-            Choose at least one service and a pickup time
-          </p>
-        )}
+        {(!slot || selectedServices.length === 0) && <p style={{ textAlign: 'center', fontSize: 12, color: '#aaa', margin: '0 0 8px' }}>Choose at least one service and a pickup time</p>}
         <button onClick={submit} disabled={!canSubmit} style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: canSubmit ? '#0F6E56' : '#ddd', color: canSubmit ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
           {saving ? 'Submitting...' : 'Submit request'}
         </button>

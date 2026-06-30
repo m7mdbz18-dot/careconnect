@@ -1,6 +1,8 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import { useQRToken } from '../hooks/useQRToken'
+import ScanRequired from './ScanRequired'
 
 const tasks = [
   'General room cleaning',
@@ -12,16 +14,19 @@ const tasks = [
 ]
 
 export default function HousekeepingRequest() {
-  const { ward, room, bed } = useParams()
   const navigate = useNavigate()
+  const { token, loading, invalid, ward, room, bed } = useQRToken()
   const [selected, setSelected] = useState([])
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  if (loading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
+  if (invalid) return <ScanRequired />
+
   function goHome() {
     const who = sessionStorage.getItem(`userType-${room}-${bed}`)
-    navigate(`/q/${ward}/${room}/${bed}/${who === 'visitor' ? 'visitor' : 'patient'}`)
+    navigate(`/q/${token}/${who === 'visitor' ? 'visitor' : 'patient'}`)
   }
 
   function toggle(task) {
@@ -32,13 +37,8 @@ export default function HousekeepingRequest() {
     if (selected.length === 0) return
     setSaving(true)
     const { error } = await supabase.from('service_requests').insert({
-      type: 'housekeeping',
-      ward: ward.toUpperCase(),
-      room,
-      bed: bed.toUpperCase(),
-      details: selected.join(', '),
-      note,
-      status: 'new',
+      type: 'housekeeping', ward: ward.toUpperCase(), room, bed: bed.toUpperCase(),
+      details: selected.join(', '), note, status: 'new',
     })
     setSaving(false)
     if (error) { alert('Could not submit request. Please try again.'); return }

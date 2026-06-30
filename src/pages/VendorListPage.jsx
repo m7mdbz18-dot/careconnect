@@ -1,46 +1,44 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { useQRToken } from '../hooks/useQRToken'
+import ScanRequired from './ScanRequired'
 
 export default function VendorListPage() {
-  const { ward, room, bed, area } = useParams()
   const navigate = useNavigate()
+  const { token, loading, invalid, locationType, ward, room, bed, area } = useQRToken()
   const [vendors, setVendors] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [vendorsLoading, setVendorsLoading] = useState(true)
 
-  const isWaiting = !!area
-  const displayArea = area ? decodeURIComponent(area) : null
+  const isWaiting = locationType === 'waiting'
 
   useEffect(() => {
     supabase.from('vendors').select('*').eq('active', true).order('sort_order').order('created_at')
-      .then(({ data }) => { setVendors(data || []); setLoading(false) })
+      .then(({ data }) => { setVendors(data || []); setVendorsLoading(false) })
   }, [])
 
-  function vendorPath(vendorId) {
-    return isWaiting
-      ? `/w/${area}/vendors/${vendorId}`
-      : `/q/${ward}/${room}/${bed}/vendors/${vendorId}`
-  }
+  if (loading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
+  if (invalid) return <ScanRequired />
 
-  function backPath() {
-    return isWaiting ? `/w/${area}` : -1
+  function vendorPath(vendorId) {
+    return isWaiting ? `/w/${token}/vendors/${vendorId}` : `/q/${token}/vendors/${vendorId}`
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => isWaiting ? navigate(`/w/${area}`) : navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Order food & items</h1>
           <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
-            {isWaiting ? displayArea : `Room ${room} · Bed ${bed.toUpperCase()} · Ward ${ward.toUpperCase()}`}
+            {isWaiting ? area : `Room ${room} · Bed ${bed.toUpperCase()} · Ward ${ward.toUpperCase()}`}
           </p>
         </div>
       </div>
 
       <p style={{ margin: '16px 16px 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Choose a vendor</p>
 
-      {loading ? (
+      {vendorsLoading ? (
         <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading...</p>
       ) : vendors.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>

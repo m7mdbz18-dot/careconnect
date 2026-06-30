@@ -1,6 +1,8 @@
 ﻿import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { useQRToken } from '../hooks/useQRToken'
+import ScanRequired from './ScanRequired'
 
 function getDeviceToken() {
   let token = localStorage.getItem('cc_device_token')
@@ -18,8 +20,10 @@ function itemTotal(item) {
 }
 
 export default function VendorPage() {
-  const { ward, room, bed, area, vendorId } = useParams()
+  const { vendorId } = useParams()
   const navigate = useNavigate()
+  const { token, loading: locLoading, invalid, locationType, ward, room, bed, area } = useQRToken()
+
   const [vendor, setVendor] = useState(null)
   const [options, setOptions] = useState([])
   const [tab, setTab] = useState('order')
@@ -30,12 +34,11 @@ export default function VendorPage() {
   const [trackingCode, setTrackingCode] = useState('')
   const [orderId, setOrderId] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [vendorLoading, setVendorLoading] = useState(true)
 
-  const isWaiting = !!area
-  const displayArea = area ? decodeURIComponent(area) : null
+  const isWaiting = locationType === 'waiting'
   const userType = sessionStorage.getItem('userType-' + room + '-' + bed) || 'patient'
-  const homePath = isWaiting ? '/w/' + area : '/q/' + ward + '/' + room + '/' + bed + '/' + userType
+  const homePath = isWaiting ? '/w/' + token : '/q/' + token + '/' + userType
   const canPlace = !submitting && !(isWaiting && (!name.trim() || !phone.trim()))
 
   const taxRate = vendor?.tax_rate || 0
@@ -49,9 +52,18 @@ export default function VendorPage() {
       supabase.from('vendors').select('*').eq('id', vendorId).single(),
       supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).eq('active', true).order('sort_order').order('created_at'),
     ]).then(([{ data: v }, { data: o }]) => {
-      setVendor(v); setOptions(o || []); setLoading(false)
+      setVendor(v); setOptions(o || []); setVendorLoading(false)
     })
   }, [vendorId])
+
+  if (locLoading || vendorLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#aaa' }}>Loading...</p>
+      </div>
+    )
+  }
+  if (invalid) return <ScanRequired />
 
   function toggleOption(opt) {
     setSelected(s =>
@@ -64,12 +76,7 @@ export default function VendorPage() {
   function toggleExtra(optId, extra) {
     setSelected(s => s.map(x =>
       x.id === optId
-        ? {
-            ...x,
-            extras: x.extras.some(e => extraName(e) === extraName(extra))
-              ? x.extras.filter(e => extraName(e) !== extraName(extra))
-              : [...x.extras, extra]
-          }
+        ? { ...x, extras: x.extras.some(e => extraName(e) === extraName(extra)) ? x.extras.filter(e => extraName(e) !== extraName(extra)) : [...x.extras, extra] }
         : x
     ))
   }
@@ -79,7 +86,7 @@ export default function VendorPage() {
     setSubmitting(true)
     const code = generateTrackingCode()
     const location = isWaiting
-      ? { location_type: 'waiting', waiting_area: displayArea }
+      ? { location_type: 'waiting', waiting_area: area }
       : { location_type: 'room', ward: ward.toUpperCase(), room, bed: bed.toUpperCase() }
 
     const { data, error } = await supabase.from('orders').insert({
@@ -112,14 +119,6 @@ export default function VendorPage() {
     return <p style={{ margin: '1px 0 0 10px', fontSize: 12, color: '#0F6E56' }}>{parts.join(' · ')}</p>
   }
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#aaa' }}>Loading...</p>
-      </div>
-    )
-  }
-
   if (step === 'success') {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -134,11 +133,11 @@ export default function VendorPage() {
           <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>Show this to the delivery person</p>
         </div>
         <div style={{ background: '#fff', borderRadius: 14, border: '0.5px solid #eee', padding: '14px 18px', marginTop: 12, width: '100%', maxWidth: 360 }}>
-          <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order &#183; {vendor.emoji} {vendor.name}</p>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
           {selected.map(item => (
             <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#111' }}>&#183; {item.name}</p>
+                <p style={{ margin: 0, fontSize: 13, color: '#111' }}>· {item.name}</p>
                 {renderExtrasLine(item.extras)}
               </div>
               {itemTotal(item) > 0 && <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(itemTotal(item))}</p>}
@@ -192,7 +191,7 @@ export default function VendorPage() {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{vendor.name}</h1>
             <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
-              {vendor.description || (isWaiting ? displayArea : 'Room ' + room + ' · Bed ' + bed.toUpperCase())}
+              {vendor.description || (isWaiting ? area : 'Room ' + room + ' · Bed ' + bed.toUpperCase())}
             </p>
           </div>
         </div>
@@ -263,11 +262,11 @@ export default function VendorPage() {
       {tab === 'order' && step === 'checkout' && (
         <div style={{ padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 14 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order &#183; {vendor.emoji} {vendor.name}</p>
+            <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888', fontWeight: 600 }}>Your order · {vendor.emoji} {vendor.name}</p>
             {selected.map(item => (
               <div key={item.id} style={{ margin: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 14, color: '#111' }}>&#183; {item.name}</p>
+                  <p style={{ margin: 0, fontSize: 14, color: '#111' }}>· {item.name}</p>
                   {renderExtrasLine(item.extras)}
                 </div>
                 {itemTotal(item) > 0 && <p style={{ margin: 0, fontSize: 14, color: '#555', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{fmtPrice(itemTotal(item))}</p>}
@@ -323,7 +322,7 @@ export default function VendorPage() {
         <div style={{ padding: 16 }}>
           {vendor.pdf_url ? (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#888' }}>Pinch to zoom &#183; Swipe to browse</p>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#888' }}>Pinch to zoom · Swipe to browse</p>
               <iframe src={vendor.pdf_url} style={{ width: '100%', height: '75vh', border: 'none', borderRadius: 12 }} title={vendor.name + ' menu'} />
             </>
           ) : (
@@ -339,7 +338,7 @@ export default function VendorPage() {
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '12px 16px', background: '#fff', borderTop: '0.5px solid #eee' }}>
           <button onClick={() => setStep('checkout')}
             style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-            Continue &#183; {selected.length} item{selected.length !== 1 ? 's' : ''}{hasPrices ? ' · ' + fmtPrice(total) : ''}
+            Continue · {selected.length} item{selected.length !== 1 ? 's' : ''}{hasPrices ? ' · ' + fmtPrice(total) : ''}
           </button>
         </div>
       )}

@@ -18,27 +18,31 @@ import VendorDashboard from './pages/VendorDashboard'
 import OrderTrackingPage from './pages/OrderTrackingPage'
 import WaitingRoomPage from './pages/WaitingRoomPage'
 import WifiManager from './pages/WifiManager'
+import ScanRequired from './pages/ScanRequired'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Patient & visitor (public, no login) */}
-        <Route path="/q/:ward/:room/:bed" element={<WelcomePage />} />
-        <Route path="/q/:ward/:room/:bed/patient" element={<PatientPage />} />
-        <Route path="/q/:ward/:room/:bed/visitor" element={<VisitorPage />} />
-        <Route path="/q/:ward/:room/:bed/vendors" element={<VendorListPage />} />
-        <Route path="/q/:ward/:room/:bed/vendors/:vendorId" element={<VendorPage />} />
-        <Route path="/q/:ward/:room/:bed/laundry" element={<LaundryRequest />} />
-        <Route path="/q/:ward/:room/:bed/housekeeping" element={<HousekeepingRequest />} />
+        {/* Patient & visitor — token-gated, only accessible via QR scan */}
+        <Route path="/q/:token" element={<WelcomePage />} />
+        <Route path="/q/:token/patient" element={<PatientPage />} />
+        <Route path="/q/:token/visitor" element={<VisitorPage />} />
+        <Route path="/q/:token/vendors" element={<VendorListPage />} />
+        <Route path="/q/:token/vendors/:vendorId" element={<VendorPage />} />
+        <Route path="/q/:token/laundry" element={<LaundryRequest />} />
+        <Route path="/q/:token/housekeeping" element={<HousekeepingRequest />} />
 
-        {/* Waiting room entry */}
-        <Route path="/w/:area" element={<WaitingRoomPage />} />
-        <Route path="/w/:area/vendors" element={<VendorListPage />} />
-        <Route path="/w/:area/vendors/:vendorId" element={<VendorPage />} />
+        {/* Waiting room — token-gated */}
+        <Route path="/w/:token" element={<WaitingRoomPage />} />
+        <Route path="/w/:token/vendors" element={<VendorListPage />} />
+        <Route path="/w/:token/vendors/:vendorId" element={<VendorPage />} />
 
         {/* Order tracking (device-private) */}
         <Route path="/order/:orderId" element={<OrderTrackingPage />} />
+
+        {/* Catch-all for invalid / direct URLs */}
+        <Route path="*" element={<ScanRequired />} />
 
         {/* Login */}
         <Route path="/login" element={<LoginPage />} />

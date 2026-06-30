@@ -1,8 +1,13 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
+import { useQRToken } from '../hooks/useQRToken'
+import ScanRequired from './ScanRequired'
 
 export default function PatientPage() {
-  const { ward, room, bed } = useParams()
   const navigate = useNavigate()
+  const { token, loading, invalid, ward, room, bed } = useQRToken()
+
+  if (loading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
+  if (invalid) return <ScanRequired />
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
@@ -15,9 +20,9 @@ export default function PatientPage() {
       <p style={{ margin: '16px 16px 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Services</p>
 
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <ServiceCard icon="🛒" iconBg="#FAEEDA" title="Order food & items" desc="Restaurants, café, flowers & more" onClick={() => navigate(`/q/${ward}/${room}/${bed}/vendors`)} />
-        <ServiceCard icon="👕" iconBg="#EAF3DE" title="Laundry pickup" desc="Schedule a collection" onClick={() => navigate(`/q/${ward}/${room}/${bed}/laundry`)} />
-        <ServiceCard icon="✨" iconBg="#E6F1FB" title="Housekeeping" desc="Room cleaning request" onClick={() => navigate(`/q/${ward}/${room}/${bed}/housekeeping`)} />
+        <ServiceCard icon="🛒" iconBg="#FAEEDA" title="Order food & items" desc="Restaurants, café, flowers & more" onClick={() => navigate(`/q/${token}/vendors`)} />
+        <ServiceCard icon="👕" iconBg="#EAF3DE" title="Laundry pickup" desc="Schedule a collection" onClick={() => navigate(`/q/${token}/laundry`)} />
+        <ServiceCard icon="✨" iconBg="#E6F1FB" title="Housekeeping" desc="Room cleaning request" onClick={() => navigate(`/q/${token}/housekeeping`)} />
       </div>
 
       <p style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 32 }}>CareConnect · Powered by your care team</p>
