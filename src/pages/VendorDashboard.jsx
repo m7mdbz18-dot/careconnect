@@ -20,11 +20,10 @@ const STATUS_LABEL = {
   ready:     { label: 'On the way', bg: '#D1FAE5', color: '#065F46' },
   delivered: { label: 'Delivered',  bg: '#F3F4F6', color: '#6B7280' },
 }
-
 const NEXT_ACTION = {
-  pending:  { label: 'Accept order',        next: 'accepted', bg: '#0F6E56' },
-  accepted: { label: 'Ready for delivery',  next: 'ready',    bg: '#2563EB' },
-  ready:    { label: 'Mark as delivered',   next: 'delivered', bg: '#6B7280' },
+  pending:  { label: 'Accept order',       next: 'accepted', bg: '#0F6E56' },
+  accepted: { label: 'Ready for delivery', next: 'ready',    bg: '#2563EB' },
+  ready:    { label: 'Mark as delivered',  next: 'delivered', bg: '#6B7280' },
 }
 
 function timeAgo(ts) {
@@ -48,7 +47,6 @@ export default function VendorDashboard() {
   const [notifStatus, setNotifStatus] = useState(
     !('Notification' in window) ? 'unsupported' : Notification.permission
   )
-
   const [menuOptions, setMenuOptions] = useState([])
   const [menuLoading, setMenuLoading] = useState(false)
   const [menuLoaded, setMenuLoaded] = useState(false)
@@ -61,6 +59,7 @@ export default function VendorDashboard() {
   const [addingExtraFor, setAddingExtraFor] = useState(null)
   const [extraInput, setExtraInput] = useState('')
   const [extraPriceInput, setExtraPriceInput] = useState('')
+  const [uploadingPdf, setUploadingPdf] = useState(false)
 
   async function setupPush(vid) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
@@ -69,15 +68,9 @@ export default function VendorDashboard() {
       const reg = await navigator.serviceWorker.register('/sw.js')
       await navigator.serviceWorker.ready
       const existing = await reg.pushManager.getSubscription()
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      })
+      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) })
       const { endpoint, keys } = sub.toJSON()
-      await supabase.from('push_subscriptions').upsert(
-        { vendor_id: vid, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-        { onConflict: 'vendor_id,endpoint' }
-      )
+      await supabase.from('push_subscriptions').upsert({ vendor_id: vid, endpoint, p256dh: keys.p256dh, auth: keys.auth }, { onConflict: 'vendor_id,endpoint' })
       setNotifStatus('granted')
     } catch { }
   }
@@ -92,19 +85,16 @@ export default function VendorDashboard() {
   useEffect(() => {
     if (!vendorId) { navigate('/login'); return }
     loadVendor(); loadOrders()
-    const channel = supabase
-      .channel('vendor-orders-' + vendorId)
+    const channel = supabase.channel('vendor-orders-' + vendorId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'vendor_id=eq.' + vendorId }, () => loadOrders())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [vendorId])
 
-  useEffect(() => {
-    if (tab === 'menu' && !menuLoaded) loadMenu()
-  }, [tab])
+  useEffect(() => { if (tab === 'menu' && !menuLoaded) loadMenu() }, [tab])
 
   async function loadVendor() {
-    const { data } = await supabase.from('vendors').select('id, name, emoji, description, tax_rate').eq('id', vendorId).single()
+    const { data } = await supabase.from('vendors').select('id, name, emoji, description, tax_rate, pdf_url').eq('id', vendorId).single()
     setVendor(data)
     if (data && Notification.permission === 'granted') setupPush(data.id)
   }
@@ -120,6 +110,24 @@ export default function VendorDashboard() {
     setMenuOptions(data || []); setMenuLoading(false); setMenuLoaded(true)
   }
 
+  async function uploadMenuPdf(file) {
+    if (!file || file.type !== 'application/pdf') { alert('Please select a PDF file.'); return }
+    setUploadingPdf(true)
+    const path = vendorId + '/menu.pdf'
+    const { error } = await supabase.storage.from('menus').upload(path, file, { upsert: true, contentType: 'application/pdf' })
+    if (error) { alert('Upload failed: ' + error.message); setUploadingPdf(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('menus').getPublicUrl(path)
+    await supabase.from('vendors').update({ pdf_url: publicUrl }).eq('id', vendorId)
+    setUploadingPdf(false); loadVendor()
+  }
+
+  async function removeMenuPdf() {
+    if (!confirm('Remove the menu PDF?')) return
+    await supabase.storage.from('menus').remove([vendorId + '/menu.pdf'])
+    await supabase.from('vendors').update({ pdf_url: null }).eq('id', vendorId)
+    loadVendor()
+  }
+
   async function advance(orderId, nextStatus) {
     setUpdating(orderId)
     await supabase.from('orders').update({ status: nextStatus }).eq('id', orderId)
@@ -130,19 +138,14 @@ export default function VendorDashboard() {
     if (!addForm.name.trim()) return
     setSaving(true)
     await supabase.from('vendor_options').insert({
-      vendor_id: vendorId,
-      name: addForm.name.trim(),
-      description: addForm.description.trim() || null,
-      category: addForm.category.trim() || null,
-      sort_order: parseInt(addForm.sort_order) || 0,
-      price: parseFloat(addForm.price) || null,
-      extras: formExtras.length > 0 ? formExtras : null,
-      active: true,
+      vendor_id: vendorId, name: addForm.name.trim(),
+      description: addForm.description.trim() || null, category: addForm.category.trim() || null,
+      sort_order: parseInt(addForm.sort_order) || 0, price: parseFloat(addForm.price) || null,
+      extras: formExtras.length > 0 ? formExtras : null, active: true,
     })
     setSaving(false)
     setAddForm({ name: '', description: '', category: '', sort_order: '0', price: '' })
-    setFormExtras([]); setFormExtraInput(''); setFormExtraPriceInput('')
-    setShowAddForm(false); loadMenu()
+    setFormExtras([]); setFormExtraInput(''); setFormExtraPriceInput(''); setShowAddForm(false); loadMenu()
   }
 
   function addFormExtra() {
@@ -153,29 +156,19 @@ export default function VendorDashboard() {
     setFormExtraInput(''); setFormExtraPriceInput('')
   }
 
-  async function toggleMenuItem(opt) {
-    await supabase.from('vendor_options').update({ active: !opt.active }).eq('id', opt.id); loadMenu()
-  }
-
-  async function deleteMenuItem(id) {
-    if (!confirm('Delete this item?')) return
-    await supabase.from('vendor_options').delete().eq('id', id); loadMenu()
-  }
+  async function toggleMenuItem(opt) { await supabase.from('vendor_options').update({ active: !opt.active }).eq('id', opt.id); loadMenu() }
+  async function deleteMenuItem(id) { if (!confirm('Delete this item?')) return; await supabase.from('vendor_options').delete().eq('id', id); loadMenu() }
 
   async function addExtraToItem(opt) {
-    const val = extraInput.trim()
-    if (!val) return
+    const val = extraInput.trim(); if (!val) return
     const price = parseFloat(extraPriceInput) || 0
-    const newExtra = price > 0 ? { name: val, price } : val
-    const newExtras = [...(opt.extras || []), newExtra]
-    await supabase.from('vendor_options').update({ extras: newExtras }).eq('id', opt.id)
+    await supabase.from('vendor_options').update({ extras: [...(opt.extras || []), price > 0 ? { name: val, price } : val] }).eq('id', opt.id)
     setExtraInput(''); setExtraPriceInput(''); setAddingExtraFor(null); loadMenu()
   }
 
   async function removeExtraFromItem(opt, extra) {
     const newExtras = (opt.extras || []).filter(e => extraName(e) !== extraName(extra))
-    await supabase.from('vendor_options').update({ extras: newExtras.length > 0 ? newExtras : null }).eq('id', opt.id)
-    loadMenu()
+    await supabase.from('vendor_options').update({ extras: newExtras.length > 0 ? newExtras : null }).eq('id', opt.id); loadMenu()
   }
 
   const activeOrders = orders.filter(o => o.status !== 'delivered')
@@ -183,10 +176,7 @@ export default function VendorDashboard() {
   const displayed    = tab === 'active' ? activeOrders : doneOrders
 
   const grouped = menuOptions.reduce((acc, opt) => {
-    const cat = opt.category || 'Items'
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(opt)
-    return acc
+    const cat = opt.category || 'Items'; if (!acc[cat]) acc[cat] = []; acc[cat].push(opt); return acc
   }, {})
 
   const tabs = [
@@ -200,18 +190,13 @@ export default function VendorDashboard() {
       <div style={{ background: '#0F6E56', padding: '20px 16px 0', color: '#fff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {isAdmin && (
-              <button onClick={() => navigate('/admin')} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>&#8249;</button>
-            )}
+            {isAdmin && <button onClick={() => navigate('/admin')} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>&#8249;</button>}
             <div>
               <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Vendor dashboard</p>
               <h1 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 600 }}>{vendor?.emoji} {vendor?.name || '...'}</h1>
             </div>
           </div>
-          <button onClick={() => { logout(); navigate('/login') }}
-            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-            Logout
-          </button>
+          <button onClick={() => { logout(); navigate('/login') }} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>Logout</button>
         </div>
         <div style={{ display: 'flex' }}>
           {tabs.map(t => (
@@ -243,9 +228,8 @@ export default function VendorDashboard() {
 
       {(tab === 'active' || tab === 'done') && (
         <div style={{ padding: 16 }}>
-          {loading ? (
-            <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading orders...</p>
-          ) : displayed.length === 0 ? (
+          {loading ? <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading orders...</p>
+          : displayed.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
               <p style={{ fontSize: 36 }}>{tab === 'active' ? '&#127881;' : '&#128203;'}</p>
               <p style={{ fontSize: 14 }}>{tab === 'active' ? 'No active orders right now' : 'No completed orders yet'}</p>
@@ -261,9 +245,7 @@ export default function VendorDashboard() {
                     <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '0.5px solid #f0f0f0' }}>
                       <div>
                         <span style={{ fontSize: 12, fontWeight: 600, color: '#111' }}>
-                          {order.location_type === 'room'
-                            ? 'Ward ' + order.ward + ' · Room ' + order.room + ' · Bed ' + order.bed
-                            : order.waiting_area}
+                          {order.location_type === 'room' ? 'Ward ' + order.ward + ' · Room ' + order.room + ' · Bed ' + order.bed : order.waiting_area}
                         </span>
                         <span style={{ marginLeft: 10, fontSize: 11, color: '#aaa' }}>{timeAgo(order.created_at)}</span>
                       </div>
@@ -280,35 +262,21 @@ export default function VendorDashboard() {
                               </p>
                             )}
                           </div>
-                          {item.price > 0 && (
-                            <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, marginLeft: 8, flexShrink: 0 }}>
-                              AED {Number(item.price).toFixed(2)}
-                            </p>
-                          )}
+                          {item.price > 0 && <p style={{ margin: 0, fontSize: 13, color: '#555', fontWeight: 600, marginLeft: 8, flexShrink: 0 }}>AED {Number(item.price).toFixed(2)}</p>}
                         </div>
                       ))}
                       {order.total > 0 && (
                         <div style={{ borderTop: '0.5px solid #f0f0f0', marginTop: 8, paddingTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                          {order.tax_amount > 0 && (
-                            <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>incl. tax AED {Number(order.tax_amount).toFixed(2)}</p>
-                          )}
-                          <p style={{ margin: '0 0 0 auto', fontSize: 14, color: '#0F6E56', fontWeight: 700 }}>
-                            Total: AED {Number(order.total).toFixed(2)}
-                          </p>
+                          {order.tax_amount > 0 && <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>incl. tax AED {Number(order.tax_amount).toFixed(2)}</p>}
+                          <p style={{ margin: '0 0 0 auto', fontSize: 14, color: '#0F6E56', fontWeight: 700 }}>Total: AED {Number(order.total).toFixed(2)}</p>
                         </div>
                       )}
                     </div>
                     <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: action ? '0.5px solid #f0f0f0' : 'none' }}>
                       <div>
                         {order.customer_name && <p style={{ margin: 0, fontSize: 12, color: '#555', fontWeight: 600 }}>{order.customer_name}</p>}
-                        {order.customer_phone && (
-                          <a href={'tel:' + order.customer_phone} style={{ fontSize: 12, color: '#0F6E56', textDecoration: 'none', fontWeight: 600 }}>
-                            &#128222; {order.customer_phone}
-                          </a>
-                        )}
-                        {!order.customer_name && !order.customer_phone && (
-                          <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>No contact info</p>
-                        )}
+                        {order.customer_phone && <a href={'tel:' + order.customer_phone} style={{ fontSize: 12, color: '#0F6E56', textDecoration: 'none', fontWeight: 600 }}>&#128222; {order.customer_phone}</a>}
+                        {!order.customer_name && !order.customer_phone && <p style={{ margin: 0, fontSize: 12, color: '#aaa' }}>No contact info</p>}
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <p style={{ margin: 0, fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Code</p>
@@ -333,6 +301,25 @@ export default function VendorDashboard() {
 
       {tab === 'menu' && (
         <div style={{ padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 16 }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#111' }}>Menu PDF</p>
+            {vendor?.pdf_url ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <a href={vendor.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0F6E56', textDecoration: 'none', fontWeight: 500 }}>
+                  &#128196; View current menu PDF &#8599;
+                </a>
+                <button onClick={removeMenuPdf} style={{ background: 'none', border: 'none', color: '#e05', fontSize: 12, cursor: 'pointer', padding: 0 }}>Remove</button>
+              </div>
+            ) : (
+              <p style={{ margin: '0 0 10px', fontSize: 13, color: '#aaa' }}>No PDF uploaded yet</p>
+            )}
+            <label style={{ display: 'block', padding: '12px', borderRadius: 9, border: '1.5px dashed #ccc', fontSize: 14, color: uploadingPdf ? '#aaa' : '#0F6E56', cursor: uploadingPdf ? 'not-allowed' : 'pointer', textAlign: 'center', background: '#f9fffe', fontWeight: 600 }}>
+              {uploadingPdf ? 'Uploading...' : vendor?.pdf_url ? '&#8593; Replace PDF' : '&#8593; Upload PDF'}
+              <input type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} disabled={uploadingPdf}
+                onChange={e => e.target.files[0] && uploadMenuPdf(e.target.files[0])} />
+            </label>
+          </div>
+
           <button onClick={() => { setShowAddForm(v => !v); setFormExtras([]); setFormExtraInput(''); setFormExtraPriceInput('') }}
             style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: '#0F6E56', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}>
             {showAddForm ? 'Cancel' : '+ Add menu item'}
@@ -341,11 +328,11 @@ export default function VendorDashboard() {
           {showAddForm && (
             <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: 16, marginBottom: 16 }}>
               {[
-                { key: 'name',        label: 'Name *',      placeholder: 'e.g. Latte' },
+                { key: 'name', label: 'Name *', placeholder: 'e.g. Latte' },
                 { key: 'description', label: 'Description', placeholder: 'e.g. Espresso with steamed milk' },
-                { key: 'category',    label: 'Category',    placeholder: 'e.g. Hot drinks' },
-                { key: 'price',       label: 'Price (AED)', placeholder: 'e.g. 15.00', type: 'number' },
-                { key: 'sort_order',  label: 'Sort order',  placeholder: '0', type: 'number' },
+                { key: 'category', label: 'Category', placeholder: 'e.g. Hot drinks' },
+                { key: 'price', label: 'Price (AED)', placeholder: 'e.g. 15.00', type: 'number' },
+                { key: 'sort_order', label: 'Sort order', placeholder: '0', type: 'number' },
               ].map(f => (
                 <div key={f.key} style={{ marginBottom: 10 }}>
                   <p style={{ margin: '0 0 4px', fontSize: 12, color: '#888' }}>{f.label}</p>
@@ -354,8 +341,7 @@ export default function VendorDashboard() {
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }} />
                 </div>
               ))}
-
-              <p style={{ margin: '4px 0 8px', fontSize: 12, color: '#888' }}>Customization options <span style={{ color: '#bbb' }}>(e.g. Extra sugar, No lettuce)</span></p>
+              <p style={{ margin: '4px 0 8px', fontSize: 12, color: '#888' }}>Customization options</p>
               {formExtras.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                   {formExtras.map(e => (
@@ -367,21 +353,13 @@ export default function VendorDashboard() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                <input value={formExtraInput} onChange={e => setFormExtraInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addFormExtra()}
-                  placeholder="Option name"
-                  style={{ flex: 2, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                <input value={formExtraPriceInput} onChange={e => setFormExtraPriceInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addFormExtra()}
-                  placeholder="+AED" type="number" min="0" step="0.5"
-                  style={{ flex: 1, minWidth: 80, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                <button onClick={addFormExtra}
-                  style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: formExtraInput.trim() ? '#0F6E56' : '#eee', color: formExtraInput.trim() ? '#fff' : '#aaa', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  + Add
-                </button>
+                <input value={formExtraInput} onChange={e => setFormExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFormExtra()}
+                  placeholder="Option name" style={{ flex: 2, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                <input value={formExtraPriceInput} onChange={e => setFormExtraPriceInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFormExtra()}
+                  placeholder="+AED" type="number" min="0" step="0.5" style={{ flex: 1, minWidth: 80, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                <button onClick={addFormExtra} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: formExtraInput.trim() ? '#0F6E56' : '#eee', color: formExtraInput.trim() ? '#fff' : '#aaa', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Add</button>
               </div>
               <p style={{ margin: '0 0 12px', fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
-
               <button onClick={addMenuItem} disabled={saving || !addForm.name.trim()}
                 style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: addForm.name.trim() ? '#0F6E56' : '#ddd', color: addForm.name.trim() ? '#fff' : '#aaa', fontWeight: 600, fontSize: 14, cursor: addForm.name.trim() ? 'pointer' : 'not-allowed' }}>
                 {saving ? 'Saving...' : 'Save item'}
@@ -389,11 +367,9 @@ export default function VendorDashboard() {
             </div>
           )}
 
-          {menuLoading ? (
-            <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading menu...</p>
-          ) : menuOptions.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>No items yet — add your first one above</p>
-          ) : Object.entries(grouped).map(([cat, items]) => (
+          {menuLoading ? <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading menu...</p>
+          : menuOptions.length === 0 ? <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>No items yet — add your first one above</p>
+          : Object.entries(grouped).map(([cat, items]) => (
             <div key={cat} style={{ marginBottom: 20 }}>
               <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>{cat}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -405,13 +381,8 @@ export default function VendorDashboard() {
                         <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: opt.active ? '#111' : '#aaa' }}>{opt.name}</p>
                         {opt.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#aaa' }}>{opt.description}</p>}
                       </div>
-                      {opt.price > 0 && (
-                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>
-                          AED {Number(opt.price).toFixed(2)}
-                        </p>
-                      )}
+                      {opt.price > 0 && <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>AED {Number(opt.price).toFixed(2)}</p>}
                     </div>
-
                     <div style={{ padding: '0 14px 12px' }}>
                       {(opt.extras || []).length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -426,22 +397,12 @@ export default function VendorDashboard() {
                       {addingExtraFor === opt.id ? (
                         <div>
                           <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                            <input autoFocus value={extraInput} onChange={e => setExtraInput(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
-                              placeholder="e.g. Extra coffee"
-                              style={{ flex: 2, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                            <input value={extraPriceInput} onChange={e => setExtraPriceInput(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
-                              placeholder="+AED" type="number" min="0" step="0.5"
-                              style={{ flex: 1, minWidth: 70, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                            <button onClick={() => addExtraToItem(opt)}
-                              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                              Add
-                            </button>
-                            <button onClick={() => { setAddingExtraFor(null); setExtraInput(''); setExtraPriceInput('') }}
-                              style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
-                              &#215;
-                            </button>
+                            <input autoFocus value={extraInput} onChange={e => setExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
+                              placeholder="e.g. Extra coffee" style={{ flex: 2, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                            <input value={extraPriceInput} onChange={e => setExtraPriceInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addExtraToItem(opt)}
+                              placeholder="+AED" type="number" min="0" step="0.5" style={{ flex: 1, minWidth: 70, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                            <button onClick={() => addExtraToItem(opt)} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                            <button onClick={() => { setAddingExtraFor(null); setExtraInput(''); setExtraPriceInput('') }} style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>&#215;</button>
                           </div>
                           <p style={{ margin: 0, fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
                         </div>
@@ -452,16 +413,9 @@ export default function VendorDashboard() {
                         </button>
                       )}
                     </div>
-
                     <div style={{ borderTop: '0.5px solid #f0f0f0', display: 'flex' }}>
-                      <button onClick={() => toggleMenuItem(opt)}
-                        style={{ flex: 1, padding: '9px', background: 'none', border: 'none', borderRight: '0.5px solid #f0f0f0', color: '#888', fontSize: 13, cursor: 'pointer' }}>
-                        {opt.active ? 'Hide' : 'Show'}
-                      </button>
-                      <button onClick={() => deleteMenuItem(opt.id)}
-                        style={{ flex: 1, padding: '9px', background: 'none', border: 'none', color: '#e05', fontSize: 13, cursor: 'pointer' }}>
-                        Delete
-                      </button>
+                      <button onClick={() => toggleMenuItem(opt)} style={{ flex: 1, padding: '9px', background: 'none', border: 'none', borderRight: '0.5px solid #f0f0f0', color: '#888', fontSize: 13, cursor: 'pointer' }}>{opt.active ? 'Hide' : 'Show'}</button>
+                      <button onClick={() => deleteMenuItem(opt.id)} style={{ flex: 1, padding: '9px', background: 'none', border: 'none', color: '#e05', fontSize: 13, cursor: 'pointer' }}>Delete</button>
                     </div>
                   </div>
                 ))}

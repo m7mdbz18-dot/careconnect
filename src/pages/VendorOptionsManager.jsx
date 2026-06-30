@@ -24,6 +24,7 @@ export default function VendorOptionsManager() {
   const [addingExtraFor, setAddingExtraFor] = useState(null)
   const [extraInput, setExtraInput] = useState('')
   const [extraPriceInput, setExtraPriceInput] = useState('')
+  const [uploadingPdf, setUploadingPdf] = useState(false)
 
   useEffect(() => { load() }, [vendorId])
 
@@ -37,14 +38,32 @@ export default function VendorOptionsManager() {
       name: v?.name || '',
       description: v?.description || '',
       emoji: v?.emoji || '🛒',
-      pdf_url: v?.pdf_url || '',
       sort_order: String(v?.sort_order ?? 0),
+      tax_rate: String(v?.tax_rate ?? 0),
       username: v?.username || '',
       password: v?.password || '',
-      tax_rate: String(v?.tax_rate ?? 0),
     })
     setOptions(o || [])
     setLoading(false)
+  }
+
+  async function uploadMenuPdf(file) {
+    if (!file || file.type !== 'application/pdf') { alert('Please select a PDF file.'); return }
+    setUploadingPdf(true)
+    const path = vendorId + '/menu.pdf'
+    const { error } = await supabase.storage.from('menus').upload(path, file, { upsert: true, contentType: 'application/pdf' })
+    if (error) { alert('Upload failed: ' + error.message); setUploadingPdf(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('menus').getPublicUrl(path)
+    await supabase.from('vendors').update({ pdf_url: publicUrl }).eq('id', vendorId)
+    setUploadingPdf(false)
+    load()
+  }
+
+  async function removeMenuPdf() {
+    if (!confirm('Remove the menu PDF?')) return
+    await supabase.storage.from('menus').remove([vendorId + '/menu.pdf'])
+    await supabase.from('vendors').update({ pdf_url: null }).eq('id', vendorId)
+    load()
   }
 
   async function saveVendor() {
@@ -53,11 +72,10 @@ export default function VendorOptionsManager() {
       name: vendorForm.name.trim(),
       description: vendorForm.description.trim() || null,
       emoji: vendorForm.emoji,
-      pdf_url: vendorForm.pdf_url.trim() || null,
       sort_order: parseInt(vendorForm.sort_order) || 0,
+      tax_rate: parseFloat(vendorForm.tax_rate) || 0,
       username: vendorForm.username.trim().toLowerCase() || null,
       password: vendorForm.password.trim() || null,
-      tax_rate: parseFloat(vendorForm.tax_rate) || 0,
     }).eq('id', vendorId)
     setSavingVendor(false)
     if (error) { setSaveError(error.message); return }
@@ -105,8 +123,7 @@ export default function VendorOptionsManager() {
     if (!val) return
     const price = parseFloat(extraPriceInput) || 0
     const newExtra = price > 0 ? { name: val, price } : val
-    const newExtras = [...(opt.extras || []), newExtra]
-    await supabase.from('vendor_options').update({ extras: newExtras }).eq('id', opt.id)
+    await supabase.from('vendor_options').update({ extras: [...(opt.extras || []), newExtra] }).eq('id', opt.id)
     setExtraInput(''); setExtraPriceInput(''); setAddingExtraFor(null); load()
   }
 
@@ -146,6 +163,31 @@ export default function VendorOptionsManager() {
       </div>
 
       <div style={{ padding: 16 }}>
+
+        {/* Menu PDF upload */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 16 }}>
+          <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#111' }}>Menu PDF</p>
+          {vendor?.pdf_url ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <a href={vendor.pdf_url} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 13, color: '#0F6E56', textDecoration: 'none', fontWeight: 500 }}>
+                &#128196; View current menu PDF &#8599;
+              </a>
+              <button onClick={removeMenuPdf}
+                style={{ background: 'none', border: 'none', color: '#e05', fontSize: 12, cursor: 'pointer', padding: 0 }}>
+                Remove
+              </button>
+            </div>
+          ) : (
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#aaa' }}>No PDF uploaded yet</p>
+          )}
+          <label style={{ display: 'block', padding: '12px', borderRadius: 9, border: '1.5px dashed #ccc', fontSize: 14, color: uploadingPdf ? '#aaa' : '#0F6E56', cursor: uploadingPdf ? 'not-allowed' : 'pointer', textAlign: 'center', background: '#f9fffe', fontWeight: 600 }}>
+            {uploadingPdf ? 'Uploading...' : vendor?.pdf_url ? '&#8593; Replace PDF' : '&#8593; Upload PDF'}
+            <input type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} disabled={uploadingPdf}
+              onChange={e => e.target.files[0] && uploadMenuPdf(e.target.files[0])} />
+          </label>
+        </div>
+
         {editingVendor && (
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: 16, marginBottom: 16 }}>
             <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#111' }}>Edit vendor details</p>
@@ -153,7 +195,6 @@ export default function VendorOptionsManager() {
               { key: 'name', label: 'Name *', placeholder: 'Vendor name' },
               { key: 'description', label: 'Description', placeholder: 'Short description' },
               { key: 'emoji', label: 'Emoji', placeholder: '🛒' },
-              { key: 'pdf_url', label: 'Menu PDF URL', placeholder: 'https://...' },
               { key: 'sort_order', label: 'Sort order', placeholder: '0', type: 'number' },
               { key: 'tax_rate', label: 'Tax rate (%)', placeholder: 'e.g. 5 for 5% VAT', type: 'number' },
               { key: 'username', label: 'Dashboard login username', placeholder: 'e.g. starbucks' },
@@ -194,7 +235,6 @@ export default function VendorOptionsManager() {
                   placeholder={f.placeholder} type={f.type || 'text'} style={inputStyle} />
               </div>
             ))}
-
             <p style={{ margin: '4px 0 8px', fontSize: 12, color: '#888' }}>Customization options <span style={{ color: '#bbb' }}>(optional)</span></p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: formExtras.length > 0 ? 8 : 0 }}>
               {formExtras.map(e => (
@@ -207,7 +247,7 @@ export default function VendorOptionsManager() {
             <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
               <input value={formExtraInput} onChange={e => setFormExtraInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addFormExtra()}
-                placeholder="Option name (e.g. Extra coffee)"
+                placeholder="Option name"
                 style={{ flex: 2, padding: '9px 12px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
               <input value={formExtraPriceInput} onChange={e => setFormExtraPriceInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addFormExtra()}
@@ -219,7 +259,6 @@ export default function VendorOptionsManager() {
               </button>
             </div>
             <p style={{ margin: '0 0 12px', fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
-
             <button onClick={addOption} disabled={saving || !form.name.trim()}
               style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: form.name.trim() ? '#0F6E56' : '#ddd', color: form.name.trim() ? '#fff' : '#aaa', fontWeight: 600, fontSize: 14, cursor: form.name.trim() ? 'pointer' : 'not-allowed' }}>
               {saving ? 'Saving...' : 'Save item'}
@@ -247,7 +286,6 @@ export default function VendorOptionsManager() {
                       </p>
                     )}
                   </div>
-
                   <div style={{ padding: '0 14px 12px' }}>
                     {(opt.extras || []).length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -271,13 +309,9 @@ export default function VendorOptionsManager() {
                             placeholder="+AED" type="number" min="0" step="0.5"
                             style={{ flex: 1, minWidth: 70, padding: '7px 10px', borderRadius: 8, border: '0.5px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
                           <button onClick={() => addExtraToOption(opt)}
-                            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                            Add
-                          </button>
+                            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0F6E56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
                           <button onClick={() => { setAddingExtraFor(null); setExtraInput(''); setExtraPriceInput('') }}
-                            style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>
-                            &#215;
-                          </button>
+                            style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#666', fontSize: 13, cursor: 'pointer' }}>&#215;</button>
                         </div>
                         <p style={{ margin: 0, fontSize: 11, color: '#bbb' }}>Leave +AED blank if the option is free</p>
                       </div>
@@ -288,7 +322,6 @@ export default function VendorOptionsManager() {
                       </button>
                     )}
                   </div>
-
                   <div style={{ borderTop: '0.5px solid #f0f0f0', display: 'flex' }}>
                     <button onClick={() => toggleOption(opt)}
                       style={{ flex: 1, padding: '9px', background: 'none', border: 'none', borderRight: '0.5px solid #f0f0f0', color: '#888', fontSize: 13, cursor: 'pointer' }}>
