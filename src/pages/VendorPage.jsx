@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
@@ -34,6 +34,7 @@ export default function VendorPage() {
   const displayArea = area ? decodeURIComponent(area) : null
   const userType = sessionStorage.getItem(`userType-${room}-${bed}`) || 'patient'
   const homePath = isWaiting ? `/w/${area}` : `/q/${ward}/${room}/${bed}/${userType}`
+  const canPlace = !submitting && !(isWaiting && (!name.trim() || !phone.trim()))
 
   useEffect(() => {
     Promise.all([
@@ -55,7 +56,7 @@ export default function VendorPage() {
   }
 
   async function placeOrder() {
-    if (selected.length === 0 || submitting) return
+    if (selected.length === 0 || !canPlace) return
     setSubmitting(true)
     const code = generateTrackingCode()
     const location = isWaiting
@@ -203,20 +204,25 @@ export default function VendorPage() {
           </div>
 
           <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '16px', marginBottom: 14 }}>
-            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Optional — helps delivery find you</p>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {isWaiting ? 'Your details — required for delivery' : 'Optional — helps delivery find you'}
+            </p>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Your name (optional)"
-              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box', outline: 'none' }}
+              placeholder={isWaiting ? 'Your name *' : 'Your name (optional)'}
+              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !name.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box', outline: 'none' }}
             />
             <input
               value={phone}
               onChange={e => setPhone(e.target.value)}
-              placeholder="Phone number (optional)"
+              placeholder={isWaiting ? 'Phone number *' : 'Phone number (optional)'}
               type="tel"
-              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', padding: '11px 12px', borderRadius: 9, border: isWaiting && !phone.trim() ? '1px solid #f87171' : '0.5px solid #ddd', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
             />
+            {isWaiting && (!name.trim() || !phone.trim()) && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#e05' }}>Name and phone are required for waiting room orders</p>
+            )}
           </div>
 
           <div style={{ background: '#E1F5EE', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
@@ -225,8 +231,8 @@ export default function VendorPage() {
 
           <button
             onClick={placeOrder}
-            disabled={submitting}
-            style={{ width: '100%', padding: '15px', borderRadius: 10, border: 'none', background: submitting ? '#ddd' : '#0F6E56', color: submitting ? '#aaa' : '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+            disabled={!canPlace}
+            style={{ width: '100%', padding: '15px', borderRadius: 10, border: 'none', background: canPlace ? '#0F6E56' : '#ddd', color: canPlace ? '#fff' : '#aaa', fontWeight: 700, fontSize: 15, cursor: canPlace ? 'pointer' : 'not-allowed' }}>
             {submitting ? 'Placing order...' : 'Place order'}
           </button>
         </div>
