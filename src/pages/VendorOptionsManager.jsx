@@ -25,13 +25,19 @@ export default function VendorOptionsManager() {
   const [extraInput, setExtraInput] = useState('')
   const [extraPriceInput, setExtraPriceInput] = useState('')
   const [uploadingPdf, setUploadingPdf] = useState(false)
+  const [areas, setAreas] = useState([])
+  const [areaAccess, setAreaAccess] = useState(new Set())
+  const [editingAreas, setEditingAreas] = useState(false)
+  const [savingAreas, setSavingAreas] = useState(false)
 
   useEffect(() => { load() }, [vendorId])
 
   async function load() {
-    const [{ data: v }, { data: o }] = await Promise.all([
+    const [{ data: v }, { data: o }, { data: tokens }, { data: rules }] = await Promise.all([
       supabase.from('vendors').select('*').eq('id', vendorId).single(),
       supabase.from('vendor_options').select('*').eq('vendor_id', vendorId).order('sort_order').order('created_at'),
+      supabase.from('qr_tokens').select('area').eq('location_type', 'waiting'),
+      supabase.from('vendor_location_access').select('location_key').eq('vendor_id', vendorId).eq('location_type', 'area'),
     ])
     setVendor(v)
     setVendorForm({
@@ -44,7 +50,26 @@ export default function VendorOptionsManager() {
       password: v?.password || '',
     })
     setOptions(o || [])
+    setAreas([...new Set((tokens || []).filter(t => t.area).map(t => t.area))].sort())
+    setAreaAccess(new Set((rules || []).map(r => r.location_key)))
     setLoading(false)
+  }
+
+  function toggleArea(a) {
+    setAreaAccess(s => { const n = new Set(s); n.has(a) ? n.delete(a) : n.add(a); return n })
+  }
+
+  async function saveAreas() {
+    setSavingAreas(true)
+    await supabase.from('vendor_location_access').delete().eq('vendor_id', vendorId).eq('location_type', 'area')
+    if (areaAccess.size > 0) {
+      await supabase.from('vendor_location_access').insert(
+        [...areaAccess].map(a => ({ vendor_id: vendorId, location_type: 'area', location_key: a }))
+      )
+    }
+    setSavingAreas(false)
+    setEditingAreas(false)
+    load()
   }
 
   async function uploadMenuPdf(file) {
@@ -186,6 +211,50 @@ export default function VendorOptionsManager() {
             <input type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} disabled={uploadingPdf}
               onChange={e => e.target.files[0] && uploadMenuPdf(e.target.files[0])} />
           </label>
+        </div>
+
+        {/* Waiting room visibility */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #eee', padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: '#111' }}>Waiting room visibility</p>
+              <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
+                {areaAccess.size === 0 ? 'Visible in all waiting rooms' : `Restricted to ${areaAccess.size} waiting room${areaAccess.size > 1 ? 's' : ''}`}
+              </p>
+            </div>
+            <button onClick={() => setEditingAreas(v => !v)}
+              style={{ padding: '7px 16px', borderRadius: 8, border: '0.5px solid #ddd', background: '#fff', color: '#555', fontSize: 13, cursor: 'pointer', fontWeight: 500, flexShrink: 0 }}>
+              {editingAreas ? 'Cancel' : 'Edit'}
+            </button>
+          </div>
+          {editingAreas && (
+            <div style={{ marginTop: 14 }}>
+              {areas.length === 0 ? (
+                <p style={{ fontSize: 13, color: '#aaa', margin: '0 0 12px' }}>No waiting room QR codes generated yet</p>
+              ) : (
+                <>
+                  <p style={{ margin: '0 0 10px', fontSize: 12, color: '#888' }}>
+                    Check the waiting rooms this vendor should appear in. Leave all unchecked to show it everywhere.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                    {areas.map(a => (
+                      <div key={a} onClick={() => toggleArea(a)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: areaAccess.has(a) ? '1.5px solid #0F6E56' : '0.5px solid #eee', background: areaAccess.has(a) ? '#E1F5EE' : '#fafafa', cursor: 'pointer' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, background: areaAccess.has(a) ? '#0F6E56' : '#fff', border: areaAccess.has(a) ? 'none' : '1.5px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {areaAccess.has(a) && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>&#10003;</span>}
+                        </div>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#111', flex: 1 }}>{a}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              <button onClick={saveAreas} disabled={savingAreas}
+                style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: savingAreas ? '#ddd' : '#0F6E56', color: savingAreas ? '#aaa' : '#fff', fontWeight: 600, fontSize: 14, cursor: savingAreas ? 'not-allowed' : 'pointer' }}>
+                {savingAreas ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
 
         {editingVendor && (

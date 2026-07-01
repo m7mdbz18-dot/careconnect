@@ -21,11 +21,24 @@ export default function VendorListPage() {
       locKey
         ? supabase.from('location_vendor_access').select('vendor_id').eq('location_type', locType).eq('location_key', locKey)
         : Promise.resolve({ data: [] }),
-    ]).then(([{ data: all }, { data: access }]) => {
+      supabase.from('vendor_location_access').select('vendor_id, location_type, location_key'),
+    ]).then(([{ data: all }, { data: access }, { data: vendorRules }]) => {
       const allowed = access || []
-      const filtered = allowed.length > 0
+      let filtered = allowed.length > 0
         ? (all || []).filter(v => allowed.some(r => r.vendor_id === v.id))
         : (all || [])
+
+      const rulesByVendor = {}
+      ;(vendorRules || []).forEach(r => {
+        if (!rulesByVendor[r.vendor_id]) rulesByVendor[r.vendor_id] = []
+        rulesByVendor[r.vendor_id].push(r)
+      })
+      filtered = filtered.filter(v => {
+        const rules = rulesByVendor[v.id]
+        if (!rules || rules.length === 0) return true
+        return !!locKey && rules.some(r => r.location_type === locType && r.location_key === locKey)
+      })
+
       setVendors(filtered)
       setDataLoading(false)
     })
