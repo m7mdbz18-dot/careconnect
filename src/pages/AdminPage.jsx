@@ -33,6 +33,7 @@ export default function AdminPage() {
     { title: 'Manage Vendors', desc: 'Add vendors & their ordering options', icon: '🛒', path: '/admin/vendors', bg: '#FAEEDA' },
     { title: 'QR Code Generator', desc: 'Create & print bed & waiting room QRs', icon: '\u{1F533}', path: '/admin/qr', bg: '#E1F5EE' },
     { title: 'WiFi QR Codes', desc: 'Manage guest WiFi networks & print QRs', icon: '📶', path: '/admin/wifi', bg: '#EEF2FF' },
+    { title: 'Access Control', desc: 'Restrict vendors per ward or waiting area', icon: '🔒', path: '/admin/access', bg: '#F3E8FF' },
   ]
 
   const statCards = [

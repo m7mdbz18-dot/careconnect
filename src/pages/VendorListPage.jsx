@@ -6,44 +6,58 @@ import ScanRequired from './ScanRequired'
 
 export default function VendorListPage() {
   const navigate = useNavigate()
-  const { token, loading, invalid, locationType, ward, room, bed, area } = useQRToken()
+  const { token, loading: tokenLoading, invalid, locationType, ward, room, bed, area } = useQRToken()
   const [vendors, setVendors] = useState([])
-  const [vendorsLoading, setVendorsLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(true)
 
   const isWaiting = locationType === 'waiting'
 
   useEffect(() => {
-    supabase.from('vendors').select('*').eq('active', true).order('sort_order').order('created_at')
-      .then(({ data }) => { setVendors(data || []); setVendorsLoading(false) })
-  }, [])
+    if (tokenLoading || invalid) return
+    const locType = isWaiting ? 'area' : 'ward'
+    const locKey  = isWaiting ? area : ward
+    Promise.all([
+      supabase.from('vendors').select('*').eq('active', true).order('sort_order').order('created_at'),
+      locKey
+        ? supabase.from('location_vendor_access').select('vendor_id').eq('location_type', locType).eq('location_key', locKey)
+        : Promise.resolve({ data: [] }),
+    ]).then(([{ data: all }, { data: access }]) => {
+      const allowed = access || []
+      const filtered = allowed.length > 0
+        ? (all || []).filter(v => allowed.some(r => r.vendor_id === v.id))
+        : (all || [])
+      setVendors(filtered)
+      setDataLoading(false)
+    })
+  }, [tokenLoading, invalid, isWaiting, area, ward])
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
+  if (tokenLoading) return <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#aaa' }}>Loading...</p></div>
   if (invalid) return <ScanRequired />
 
   function vendorPath(vendorId) {
     return isWaiting ? `/w/${token}/vendors/${vendorId}` : `/q/${token}/vendors/${vendorId}`
   }
 
+  const subtitle = isWaiting ? area : `Room ${room} · Bed ${bed?.toUpperCase()} · Ward ${ward?.toUpperCase()}`
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
       <div style={{ background: '#0F6E56', padding: '20px 16px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}>&#8249;</button>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Order food & items</h1>
-          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
-            {isWaiting ? area : `Room ${room} · Bed ${bed.toUpperCase()} · Ward ${ward.toUpperCase()}`}
-          </p>
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>{subtitle}</p>
         </div>
       </div>
 
       <p style={{ margin: '16px 16px 8px', fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Choose a vendor</p>
 
-      {vendorsLoading ? (
+      {dataLoading ? (
         <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Loading...</p>
       ) : vendors.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
-          <p style={{ fontSize: 36 }}>🛒</p>
-          <p style={{ fontSize: 14 }}>No vendors available yet</p>
+          <p style={{ fontSize: 36 }}>&#128722;</p>
+          <p style={{ fontSize: 14 }}>No vendors available here</p>
         </div>
       ) : (
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -57,13 +71,13 @@ export default function VendorListPage() {
                 <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#111' }}>{v.name}</p>
                 {v.description && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{v.description}</p>}
               </div>
-              <span style={{ color: '#ccc', fontSize: 18 }}>›</span>
+              <span style={{ color: '#ccc', fontSize: 18 }}>&#8250;</span>
             </div>
           ))}
         </div>
       )}
 
-      <p style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 32 }}>Pay in person on delivery · Cash or card</p>
+      <p style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 32 }}>Pay in person on delivery &middot; Cash or card</p>
     </div>
   )
 }

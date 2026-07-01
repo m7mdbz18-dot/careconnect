@@ -18,6 +18,7 @@ import VendorDashboard from './pages/VendorDashboard'
 import OrderTrackingPage from './pages/OrderTrackingPage'
 import WaitingRoomPage from './pages/WaitingRoomPage'
 import WifiManager from './pages/WifiManager'
+import AccessManager from './pages/AccessManager'
 import ScanRequired from './pages/ScanRequired'
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
         <Route path="/admin/vendors" element={<Protected allow="admin"><VendorManager /></Protected>} />
         <Route path="/admin/vendors/:vendorId" element={<Protected allow="admin"><VendorOptionsManager /></Protected>} />
         <Route path="/admin/wifi" element={<Protected allow="admin"><WifiManager /></Protected>} />
+        <Route path="/admin/access" element={<Protected allow="admin"><AccessManager /></Protected>} />
       </Routes>
     </BrowserRouter>
   )
