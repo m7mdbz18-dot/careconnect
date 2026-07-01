@@ -5,7 +5,7 @@ import { logout } from '../auth'
 
 export default function AdminPage() {
   const navigate = useNavigate()
-  const [stats, setStats] = useState({ active: 0 })
+  const [stats, setStats] = useState({ orders: 0, housekeeping: 0, laundry: 0 })
   const [vendors, setVendors] = useState([])
 
   useEffect(() => {
@@ -14,14 +14,19 @@ export default function AdminPage() {
     const channel = supabase
       .channel('admin-stats')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, () => loadStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => loadVendors())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
 
   async function loadStats() {
-    const active = await supabase.from('service_requests').select('id', { count: 'exact', head: true }).neq('status', 'done')
-    setStats({ active: active.count || 0 })
+    const [orders, housekeeping, laundry] = await Promise.all([
+      supabase.from('orders').select('id', { count: 'exact', head: true }).neq('status', 'delivered'),
+      supabase.from('service_requests').select('id', { count: 'exact', head: true }).eq('type', 'housekeeping').neq('status', 'done').neq('status', 'deleted'),
+      supabase.from('service_requests').select('id', { count: 'exact', head: true }).eq('type', 'laundry').neq('status', 'done').neq('status', 'deleted'),
+    ])
+    setStats({ orders: orders.count || 0, housekeeping: housekeeping.count || 0, laundry: laundry.count || 0 })
   }
 
   async function loadVendors() {
@@ -37,7 +42,9 @@ export default function AdminPage() {
   ]
 
   const statCards = [
-    { label: 'Active requests', value: stats.active, bg: '#FAEEDA', color: '#633806' },
+    { label: 'Food orders', value: stats.orders, bg: '#FAEEDA', color: '#633806' },
+    { label: 'Housekeeping', value: stats.housekeeping, bg: '#E1F5EE', color: '#085041' },
+    { label: 'Laundry', value: stats.laundry, bg: '#EEF2FF', color: '#3730A3' },
   ]
 
   return (
